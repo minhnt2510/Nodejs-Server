@@ -99,8 +99,13 @@ export const TWEETS_MESSAGES = {
   INVALID_TWEET_ID: 'Invalid tweet id',
   GET_TWEET_SUCCESS: 'Get tweet success',
   CREATE_TWEET_SUCCESS: 'Create tweet success',
+  UPDATE_TWEET_SUCCESS: 'Update tweet success',
+  DELETE_TWEET_SUCCESS: 'Delete tweet success',
   GET_TWEET_CHILDREN_SUCCESS: 'Get tweet children success',
-  GET_NEW_FEEDS_SUCCESS: 'Get new feeds success'
+  GET_NEW_FEEDS_SUCCESS: 'Get new feeds success',
+  GET_USER_TWEETS_SUCCESS: 'Get user tweets success',
+  TWEET_PERMISSION_DENIED: 'You do not have permission to modify this tweet',
+  RETWEET_CANNOT_BE_UPDATED: 'Retweet cannot be updated'
 } as const
 
 export const BOOKMARKS_MESSAGES = {

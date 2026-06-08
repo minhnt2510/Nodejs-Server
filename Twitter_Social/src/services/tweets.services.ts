@@ -1,8 +1,12 @@
 import { ObjectId, WithId } from 'mongodb'
-import { TweetType } from '~/constants/enums'
-import { TweetReqBody } from '~/models/requests/Tweet.requests'
+import { TweetAudience, TweetType } from '~/constants/enums'
+import { HTTP_STATUS } from '~/constants/httpStatus'
+import { TWEETS_MESSAGES } from '~/constants/messages'
+import { ErrorWithStatus } from '~/models/Errors'
+import { TweetReqBody, UpdateTweetReqBody } from '~/models/requests/Tweet.requests'
 import Tweet from '~/models/schemas/Tweet.schema'
 import { Hashtag } from '~/models/schemas/Hashtag.schema'
+import { getTweetEnrichmentStages } from '~/utils/tweet-aggregation'
 import databaseService from './database.services'
 
 class TweetsService {
@@ -19,6 +23,16 @@ class TweetsService {
     return hashtagDocuments.map((hashtag) => (hashtag as WithId<Hashtag>)._id)
   }
 
+  private async getTweetById(tweet_id: ObjectId, viewer_id?: string) {
+    const [tweet] = await databaseService.tweets
+      .aggregate([
+        { $match: { _id: tweet_id } },
+        ...getTweetEnrichmentStages(viewer_id)
+      ])
+      .toArray()
+    return tweet
+  }
+
   async createTweet(user_id: string, body: TweetReqBody) {
     const hashtags = await this.checkAndCreateHashtags(body.hashtags)
     const result = await databaseService.tweets.insertOne(
@@ -33,8 +47,81 @@ class TweetsService {
         user_id: new ObjectId(user_id)
       })
     )
-    const tweet = await databaseService.tweets.findOne({ _id: result.insertedId })
-    return tweet
+    return this.getTweetById(result.insertedId, user_id)
+  }
+
+  async updateTweet(user_id: string, tweet_id: string, body: UpdateTweetReqBody) {
+    const tweet_id_obj = new ObjectId(tweet_id)
+    const tweet = await databaseService.tweets.findOne({ _id: tweet_id_obj })
+    if (!tweet) {
+      throw new ErrorWithStatus({ message: TWEETS_MESSAGES.TWEET_NOT_FOUND, status: HTTP_STATUS.NOT_FOUND })
+    }
+    if (!tweet.user_id.equals(user_id)) {
+      throw new ErrorWithStatus({ message: TWEETS_MESSAGES.TWEET_PERMISSION_DENIED, status: HTTP_STATUS.FORBIDDEN })
+    }
+    if (tweet.type === TweetType.Retweet) {
+      throw new ErrorWithStatus({ message: TWEETS_MESSAGES.RETWEET_CANNOT_BE_UPDATED, status: HTTP_STATUS.BAD_REQUEST })
+    }
+
+    const update: Record<string, unknown> = {}
+    if (body.content !== undefined) update.content = body.content.trim()
+    if (body.audience !== undefined) update.audience = body.audience
+    if (body.medias !== undefined) update.medias = body.medias
+    if (body.mentions !== undefined) update.mentions = body.mentions.map((item) => new ObjectId(item))
+    if (body.hashtags !== undefined) update.hashtags = await this.checkAndCreateHashtags(body.hashtags)
+
+    const next_content = body.content !== undefined ? body.content.trim() : tweet.content
+    const next_hashtags = body.hashtags !== undefined ? body.hashtags : tweet.hashtags
+    const next_mentions = body.mentions !== undefined ? body.mentions : tweet.mentions
+    const next_medias = body.medias !== undefined ? body.medias : tweet.medias
+    if (!next_content && next_hashtags.length === 0 && next_mentions.length === 0 && next_medias.length === 0) {
+      throw new ErrorWithStatus({
+        message: TWEETS_MESSAGES.CONTENT_MUST_BE_A_NON_EMPTY_STRING,
+        status: HTTP_STATUS.UNPROCESSABLE_ENTITY
+      })
+    }
+
+    await databaseService.tweets.updateOne(
+      { _id: tweet_id_obj },
+      { $set: update, $currentDate: { updated_at: true } }
+    )
+    return this.getTweetById(tweet_id_obj, user_id)
+  }
+
+  async deleteTweet(user_id: string, tweet_id: string) {
+    const tweet_id_obj = new ObjectId(tweet_id)
+    const tweet = await databaseService.tweets.findOne({ _id: tweet_id_obj })
+    if (!tweet) {
+      throw new ErrorWithStatus({ message: TWEETS_MESSAGES.TWEET_NOT_FOUND, status: HTTP_STATUS.NOT_FOUND })
+    }
+    if (!tweet.user_id.equals(user_id)) {
+      throw new ErrorWithStatus({ message: TWEETS_MESSAGES.TWEET_PERMISSION_DENIED, status: HTTP_STATUS.FORBIDDEN })
+    }
+
+    const [tree] = await databaseService.tweets
+      .aggregate<{ descendants: Array<{ _id: ObjectId }> }>([
+        { $match: { _id: tweet_id_obj } },
+        {
+          $graphLookup: {
+            from: 'tweets',
+            startWith: '$_id',
+            connectFromField: '_id',
+            connectToField: 'parent_id',
+            as: 'descendants'
+          }
+        },
+        { $project: { descendants: 1 } }
+      ])
+      .toArray()
+
+    const tweet_ids = [tweet_id_obj, ...(tree?.descendants.map((item) => item._id) ?? [])]
+    await Promise.all([
+      databaseService.likes.deleteMany({ tweet_id: { $in: tweet_ids } }),
+      databaseService.bookmarks.deleteMany({ tweet_id: { $in: tweet_ids } }),
+      databaseService.tweets.deleteMany({ _id: { $in: tweet_ids } })
+    ])
+
+    return { deleted_tweet_ids: tweet_ids.map((item) => item.toString()) }
   }
 
   async increaseView(tweet_id: string, user_id?: string) {
@@ -61,48 +148,17 @@ class TweetsService {
     user_id?: string
   }) {
     const tweets = await databaseService.tweets
-      .aggregate<Tweet>([
+      .aggregate([
         {
           $match: {
             parent_id: new ObjectId(tweet_id),
             type: tweet_type
           }
         },
+        { $sort: { created_at: -1 } },
         { $skip: limit * (page - 1) },
         { $limit: limit },
-        {
-          $lookup: { from: 'hashtags', localField: 'hashtags', foreignField: '_id', as: 'hashtags' }
-        },
-        {
-          $lookup: { from: 'users', localField: 'mentions', foreignField: '_id', as: 'mentions' }
-        },
-        {
-          $addFields: {
-            mentions: {
-              $map: {
-                input: '$mentions',
-                as: 'mention',
-                in: { _id: '$$mention._id', name: '$$mention.name', username: '$$mention.username', email: '$$mention.email' }
-              }
-            }
-          }
-        },
-        { $lookup: { from: 'bookmarks', localField: '_id', foreignField: 'tweet_id', as: 'bookmarks' } },
-        { $lookup: { from: 'likes', localField: '_id', foreignField: 'tweet_id', as: 'likes' } },
-        {
-          $lookup: { from: 'tweets', localField: '_id', foreignField: 'parent_id', as: 'tweet_children' }
-        },
-        {
-          $addFields: {
-            bookmarks: { $size: '$bookmarks' },
-            likes: { $size: '$likes' },
-            retweet_count: { $size: { $filter: { input: '$tweet_children', as: 'item', cond: { $eq: ['$$item.type', TweetType.Retweet] } } } },
-            comment_count: { $size: { $filter: { input: '$tweet_children', as: 'item', cond: { $eq: ['$$item.type', TweetType.Comment] } } } },
-            quote_count: { $size: { $filter: { input: '$tweet_children', as: 'item', cond: { $eq: ['$$item.type', TweetType.QuoteTweet] } } } },
-            views: { $add: ['$guest_views', '$user_views'] }
-          }
-        },
-        { $project: { tweet_children: 0 } }
+        ...getTweetEnrichmentStages(user_id)
       ])
       .toArray()
 
@@ -135,42 +191,7 @@ class TweetsService {
           { $sort: { created_at: -1 } },
           { $skip: limit * (page - 1) },
           { $limit: limit },
-          { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } },
-          { $unwind: { path: '$user' } },
-          { $lookup: { from: 'hashtags', localField: 'hashtags', foreignField: '_id', as: 'hashtags' } },
-          { $lookup: { from: 'users', localField: 'mentions', foreignField: '_id', as: 'mentions' } },
-          {
-            $addFields: {
-              mentions: {
-                $map: {
-                  input: '$mentions',
-                  as: 'mention',
-                  in: { _id: '$$mention._id', name: '$$mention.name', username: '$$mention.username', email: '$$mention.email' }
-                }
-              }
-            }
-          },
-          { $lookup: { from: 'bookmarks', localField: '_id', foreignField: 'tweet_id', as: 'bookmarks' } },
-          { $lookup: { from: 'likes', localField: '_id', foreignField: 'tweet_id', as: 'likes' } },
-          {
-            $lookup: { from: 'tweets', localField: '_id', foreignField: 'parent_id', as: 'tweet_children' }
-          },
-          {
-            $addFields: {
-              bookmarks: { $size: '$bookmarks' },
-              likes: { $size: '$likes' },
-              retweet_count: { $size: { $filter: { input: '$tweet_children', as: 'item', cond: { $eq: ['$$item.type', TweetType.Retweet] } } } },
-              comment_count: { $size: { $filter: { input: '$tweet_children', as: 'item', cond: { $eq: ['$$item.type', TweetType.Comment] } } } },
-              quote_count: { $size: { $filter: { input: '$tweet_children', as: 'item', cond: { $eq: ['$$item.type', TweetType.QuoteTweet] } } } },
-              views: { $add: ['$guest_views', '$user_views'] }
-            }
-          },
-          {
-            $project: {
-              tweet_children: 0,
-              user: { password: 0, email_verify_token: 0, forgot_password_token: 0, twitter_circle: 0 }
-            }
-          }
+          ...getTweetEnrichmentStages(user_id)
         ])
         .toArray(),
       databaseService.tweets
@@ -188,6 +209,50 @@ class TweetsService {
     )
 
     return { tweets, total: total[0]?.total || 0 }
+  }
+
+  async getUserTweets({
+    profile_user_id,
+    viewer_id,
+    limit,
+    page
+  }: {
+    profile_user_id: string
+    viewer_id: string
+    limit: number
+    page: number
+  }) {
+    const profile_user_id_obj = new ObjectId(profile_user_id)
+    const match =
+      profile_user_id === viewer_id
+        ? { user_id: profile_user_id_obj }
+        : { user_id: profile_user_id_obj, audience: TweetAudience.Everyone }
+
+    const [tweets, total] = await Promise.all([
+      databaseService.tweets
+        .aggregate([
+          { $match: match },
+          { $sort: { created_at: -1 } },
+          { $skip: limit * (page - 1) },
+          { $limit: limit },
+          ...getTweetEnrichmentStages(viewer_id)
+        ])
+        .toArray(),
+      databaseService.tweets.countDocuments(match)
+    ])
+
+    const tweet_ids = tweets.map((tweet) => tweet._id as ObjectId)
+    if (tweet_ids.length) {
+      await databaseService.tweets.updateMany(
+        { _id: { $in: tweet_ids } },
+        {
+          $inc: { user_views: 1 },
+          $currentDate: { updated_at: true }
+        }
+      )
+    }
+
+    return { tweets, total }
   }
 }
 

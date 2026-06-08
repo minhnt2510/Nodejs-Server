@@ -16,14 +16,31 @@ export interface TweetReqBody {
   medias: Media[]
 }
 
+export interface UpdateTweetReqBody {
+  audience?: TweetAudience
+  content?: string
+  hashtags?: string[]
+  mentions?: string[]
+  medias?: Media[]
+}
+
 export interface TweetParam extends ParamsDictionary {
   tweet_id: string
+}
+
+export interface UserTweetsParam extends ParamsDictionary {
+  user_id: string
 }
 
 export interface TweetQuery extends Query {
   limit: string
   page: string
   tweet_type: string
+}
+
+export interface UserTweetsQuery extends Query {
+  limit: string
+  page: string
 }
 
 export interface Pagination {

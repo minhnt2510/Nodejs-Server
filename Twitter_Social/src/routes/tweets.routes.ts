@@ -1,16 +1,21 @@
 import { Router } from 'express'
 import {
   createTweetController,
+  deleteTweetController,
   getNewFeedsController,
   getTweetChildrenController,
-  getTweetController
+  getTweetController,
+  getUserTweetsController,
+  updateTweetController
 } from '~/controllers/tweets.controllers'
 import {
   audienceValidator,
   createTweetValidator,
   getTweetChildrenValidator,
   paginationValidator,
-  tweetIdValidator
+  tweetIdValidator,
+  updateTweetValidator,
+  userIdParamValidator
 } from '~/middlewares/tweets.middlewares'
 import { accessTokenValidator, isUserLoggedInValidator, verifiedUserValidator } from '~/middlewares/users.middlewares'
 import { wrapRequestHandler } from '~/utils/handlers'
@@ -53,6 +58,53 @@ tweetsRouter.get(
 
 /**
  * @swagger
+ * /tweets/users/{user_id}:
+ *   get:
+ *     tags: [Tweets]
+ *     summary: Get tweets created by a user
+ */
+tweetsRouter.get(
+  '/users/:user_id',
+  accessTokenValidator,
+  verifiedUserValidator,
+  userIdParamValidator,
+  paginationValidator,
+  wrapRequestHandler(getUserTweetsController as any)
+)
+
+/**
+ * @swagger
+ * /tweets/{tweet_id}:
+ *   patch:
+ *     tags: [Tweets]
+ *     summary: Update an owned tweet
+ */
+tweetsRouter.patch(
+  '/:tweet_id',
+  accessTokenValidator,
+  verifiedUserValidator,
+  tweetIdValidator,
+  updateTweetValidator,
+  wrapRequestHandler(updateTweetController)
+)
+
+/**
+ * @swagger
+ * /tweets/{tweet_id}:
+ *   delete:
+ *     tags: [Tweets]
+ *     summary: Delete an owned tweet, reply, quote, or repost
+ */
+tweetsRouter.delete(
+  '/:tweet_id',
+  accessTokenValidator,
+  verifiedUserValidator,
+  tweetIdValidator,
+  wrapRequestHandler(deleteTweetController)
+)
+
+/**
+ * @swagger
  * /tweets/{tweet_id}:
  *   get:
  *     tags: [Tweets]
@@ -60,9 +112,9 @@ tweetsRouter.get(
  */
 tweetsRouter.get(
   '/:tweet_id',
-  tweetIdValidator,
   isUserLoggedInValidator(accessTokenValidator),
   isUserLoggedInValidator(verifiedUserValidator),
+  tweetIdValidator,
   audienceValidator,
   wrapRequestHandler(getTweetController)
 )
@@ -76,9 +128,9 @@ tweetsRouter.get(
  */
 tweetsRouter.get(
   '/:tweet_id/children',
-  tweetIdValidator,
   isUserLoggedInValidator(accessTokenValidator),
   isUserLoggedInValidator(verifiedUserValidator),
+  tweetIdValidator,
   audienceValidator,
   paginationValidator,
   getTweetChildrenValidator,

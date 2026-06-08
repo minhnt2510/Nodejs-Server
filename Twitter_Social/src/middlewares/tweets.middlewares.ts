@@ -9,6 +9,7 @@ import { ErrorWithStatus } from '~/models/Errors'
 import { TokenPayload } from '~/models/requests/User.requests'
 import databaseService from '~/services/database.services'
 import { validate } from '~/utils/validation'
+import { getTweetEnrichmentStages } from '~/utils/tweet-aggregation'
 
 export const createTweetValidator = validate(
   checkSchema(
@@ -112,96 +113,7 @@ export const tweetIdValidator = validate(
             const [tweet] = await databaseService.tweets
               .aggregate<any>([
                 { $match: { _id: new ObjectId(value) } },
-                {
-                  $lookup: {
-                    from: 'hashtags',
-                    localField: 'hashtags',
-                    foreignField: '_id',
-                    as: 'hashtags'
-                  }
-                },
-                {
-                  $lookup: {
-                    from: 'users',
-                    localField: 'mentions',
-                    foreignField: '_id',
-                    as: 'mentions'
-                  }
-                },
-                {
-                  $addFields: {
-                    mentions: {
-                      $map: {
-                        input: '$mentions',
-                        as: 'mention',
-                        in: {
-                          _id: '$$mention._id',
-                          name: '$$mention.name',
-                          username: '$$mention.username',
-                          email: '$$mention.email'
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  $lookup: {
-                    from: 'bookmarks',
-                    localField: '_id',
-                    foreignField: 'tweet_id',
-                    as: 'bookmarks'
-                  }
-                },
-                {
-                  $lookup: {
-                    from: 'likes',
-                    localField: '_id',
-                    foreignField: 'tweet_id',
-                    as: 'likes'
-                  }
-                },
-                {
-                  $lookup: {
-                    from: 'tweets',
-                    localField: '_id',
-                    foreignField: 'parent_id',
-                    as: 'tweet_children'
-                  }
-                },
-                {
-                  $addFields: {
-                    bookmarks: { $size: '$bookmarks' },
-                    likes: { $size: '$likes' },
-                    retweet_count: {
-                      $size: {
-                        $filter: {
-                          input: '$tweet_children',
-                          as: 'item',
-                          cond: { $eq: ['$$item.type', TweetType.Retweet] }
-                        }
-                      }
-                    },
-                    comment_count: {
-                      $size: {
-                        $filter: {
-                          input: '$tweet_children',
-                          as: 'item',
-                          cond: { $eq: ['$$item.type', TweetType.Comment] }
-                        }
-                      }
-                    },
-                    quote_count: {
-                      $size: {
-                        $filter: {
-                          input: '$tweet_children',
-                          as: 'item',
-                          cond: { $eq: ['$$item.type', TweetType.QuoteTweet] }
-                        }
-                      }
-                    }
-                  }
-                },
-                { $project: { tweet_children: 0 } }
+                ...getTweetEnrichmentStages((req as Request).decoded_authorization?.user_id)
               ])
               .toArray()
             if (!tweet) {
@@ -214,6 +126,84 @@ export const tweetIdValidator = validate(
       }
     },
     ['params', 'body']
+  )
+)
+
+export const updateTweetValidator = validate(
+  checkSchema(
+    {
+      audience: {
+        optional: true,
+        isIn: { options: [Object.values(TweetAudience)], errorMessage: TWEETS_MESSAGES.INVALID_AUDIENCE }
+      },
+      content: {
+        optional: true,
+        isString: true
+      },
+      hashtags: {
+        optional: true,
+        isArray: true,
+        custom: {
+          options: (value) => {
+            if (!value.every((item: any) => typeof item === 'string')) {
+              throw new Error(TWEETS_MESSAGES.HASHTAGS_MUST_BE_AN_ARRAY_OF_STRING)
+            }
+            return true
+          }
+        }
+      },
+      mentions: {
+        optional: true,
+        isArray: true,
+        custom: {
+          options: (value) => {
+            if (!value.every((item: any) => ObjectId.isValid(item))) {
+              throw new Error(TWEETS_MESSAGES.MENTIONS_MUST_BE_AN_ARRAY_OF_USER_ID)
+            }
+            return true
+          }
+        }
+      },
+      medias: {
+        optional: true,
+        isArray: true,
+        custom: {
+          options: (value) => {
+            if (
+              !value.every((item: any) => {
+                return typeof item.url === 'string' && [MediaType.Image, MediaType.Video, MediaType.HLS].includes(item.type)
+              })
+            ) {
+              throw new Error(TWEETS_MESSAGES.MEDIAS_MUST_BE_AN_ARRAY_OF_MEDIA_OBJECT)
+            }
+            return true
+          }
+        }
+      }
+    },
+    ['body']
+  )
+)
+
+export const userIdParamValidator = validate(
+  checkSchema(
+    {
+      user_id: {
+        custom: {
+          options: async (value) => {
+            if (!ObjectId.isValid(value)) {
+              throw new ErrorWithStatus({ message: USERS_MESSAGES.INVALID_USER_ID, status: HTTP_STATUS.BAD_REQUEST })
+            }
+            const user = await databaseService.users.findOne({ _id: new ObjectId(value) })
+            if (!user) {
+              throw new ErrorWithStatus({ message: USERS_MESSAGES.USER_NOT_FOUND, status: HTTP_STATUS.NOT_FOUND })
+            }
+            return true
+          }
+        }
+      }
+    },
+    ['params']
   )
 )
 

@@ -2,7 +2,15 @@ import { Request, Response } from 'express'
 import { ParamsDictionary } from 'express-serve-static-core'
 import { TweetType } from '~/constants/enums'
 import { TWEETS_MESSAGES } from '~/constants/messages'
-import { Pagination, TweetParam, TweetQuery, TweetReqBody } from '~/models/requests/Tweet.requests'
+import {
+  Pagination,
+  TweetParam,
+  TweetQuery,
+  TweetReqBody,
+  UpdateTweetReqBody,
+  UserTweetsParam,
+  UserTweetsQuery
+} from '~/models/requests/Tweet.requests'
 import { TokenPayload } from '~/models/requests/User.requests'
 import tweetsService from '~/services/tweets.services'
 
@@ -10,6 +18,21 @@ export const createTweetController = async (req: Request<ParamsDictionary, any, 
   const { user_id } = req.decoded_authorization as TokenPayload
   const result = await tweetsService.createTweet(user_id, req.body)
   return res.json({ message: TWEETS_MESSAGES.CREATE_TWEET_SUCCESS, result })
+}
+
+export const updateTweetController = async (
+  req: Request<TweetParam, any, UpdateTweetReqBody>,
+  res: Response
+) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const result = await tweetsService.updateTweet(user_id, req.params.tweet_id, req.body)
+  return res.json({ message: TWEETS_MESSAGES.UPDATE_TWEET_SUCCESS, result })
+}
+
+export const deleteTweetController = async (req: Request<TweetParam>, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const result = await tweetsService.deleteTweet(user_id, req.params.tweet_id)
+  return res.json({ message: TWEETS_MESSAGES.DELETE_TWEET_SUCCESS, result })
 }
 
 export const getTweetController = async (req: Request, res: Response) => {
@@ -58,6 +81,31 @@ export const getNewFeedsController = async (req: Request<ParamsDictionary, any, 
 
   return res.json({
     message: TWEETS_MESSAGES.GET_NEW_FEEDS_SUCCESS,
+    result: {
+      tweets,
+      limit,
+      page,
+      total_page: Math.ceil(total / limit)
+    }
+  })
+}
+
+export const getUserTweetsController = async (
+  req: Request<UserTweetsParam, any, any, UserTweetsQuery>,
+  res: Response
+) => {
+  const { user_id: viewer_id } = req.decoded_authorization as TokenPayload
+  const limit = Number(req.query.limit)
+  const page = Number(req.query.page)
+  const { tweets, total } = await tweetsService.getUserTweets({
+    profile_user_id: req.params.user_id,
+    viewer_id,
+    limit,
+    page
+  })
+
+  return res.json({
+    message: TWEETS_MESSAGES.GET_USER_TWEETS_SUCCESS,
     result: {
       tweets,
       limit,
