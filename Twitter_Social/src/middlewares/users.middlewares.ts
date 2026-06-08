@@ -397,6 +397,20 @@ export const updateMeValidator = validate(
   )
 )
 
+export const searchUsersValidator = validate(
+  checkSchema(
+    {
+      q: {
+        isString: { errorMessage: 'Search query must be a string' },
+        trim: true,
+        notEmpty: { errorMessage: 'Search query is required' },
+        isLength: { options: { min: 1, max: 50 }, errorMessage: 'Search query must be between 1 and 50 characters' }
+      }
+    },
+    ['query']
+  )
+)
+
 export const filterMiddleware =
   <T>(filterKeys: Array<keyof T>) =>
   (req: Request, res: Response, next: NextFunction) => {

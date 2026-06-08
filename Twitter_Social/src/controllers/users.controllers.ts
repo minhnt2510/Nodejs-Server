@@ -15,6 +15,7 @@ import {
   RefreshTokenReqBody,
   RegisterReqBody,
   ResetPasswordReqBody,
+  SearchUsersQuery,
   TokenPayload,
   UnfollowReqParams,
   UpdateMeReqBody,
@@ -132,6 +133,31 @@ export const getProfileController = async (req: Request<GetProfileReqParams>, re
     throw new ErrorWithStatus({ message: USERS_MESSAGES.USER_NOT_FOUND, status: HTTP_STATUS.NOT_FOUND })
   }
   return res.json({ message: USERS_MESSAGES.GET_PROFILE_SUCCESS, result: user })
+}
+
+export const searchUsersController = async (
+  req: Request<ParamsDictionary, unknown, unknown, SearchUsersQuery>,
+  res: Response
+) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const limit = Number(req.query.limit)
+  const page = Number(req.query.page)
+  const { users, total } = await usersService.searchUsers({
+    user_id,
+    q: req.query.q,
+    limit,
+    page
+  })
+
+  return res.json({
+    message: 'Search users successfully',
+    result: {
+      users,
+      limit,
+      page,
+      total_page: Math.ceil(total / limit)
+    }
+  })
 }
 
 export const followController = async (req: Request<ParamsDictionary, any, FollowReqBody>, res: Response) => {

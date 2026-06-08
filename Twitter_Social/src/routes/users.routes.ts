@@ -12,6 +12,7 @@ import {
   registerController,
   resendVerifyEmailController,
   resetPasswordController,
+  searchUsersController,
   unfollowController,
   updateMeController,
   verifyEmailController,
@@ -28,11 +29,13 @@ import {
   refreshTokenValidator,
   registerValidator,
   resetPasswordValidator,
+  searchUsersValidator,
   unfollowValidator,
   updateMeValidator,
   verifiedUserValidator,
   verifyForgotPasswordTokenValidator
 } from '~/middlewares/users.middlewares'
+import { paginationValidator } from '~/middlewares/tweets.middlewares'
 import { UpdateMeReqBody } from '~/models/requests/User.requests'
 import { wrapRequestHandler } from '~/utils/handlers'
 
@@ -219,6 +222,24 @@ usersRouter.patch(
   updateMeValidator,
   filterMiddleware<UpdateMeReqBody>(['name', 'date_of_birth', 'bio', 'location', 'website', 'username', 'avatar', 'cover_photo']),
   wrapRequestHandler(updateMeController)
+)
+
+/**
+ * @swagger
+ * /users/search:
+ *   get:
+ *     tags: [Users]
+ *     summary: Search users by name or username
+ *     security:
+ *       - BearerAuth: []
+ */
+usersRouter.get(
+  '/search',
+  accessTokenValidator,
+  verifiedUserValidator,
+  searchUsersValidator,
+  paginationValidator,
+  wrapRequestHandler(searchUsersController as any)
 )
 
 /**

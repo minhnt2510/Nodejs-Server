@@ -234,6 +234,76 @@ class UsersService {
     return user
   }
 
+  async searchUsers({
+    user_id,
+    q,
+    limit,
+    page
+  }: {
+    user_id: string
+    q: string
+    limit: number
+    page: number
+  }) {
+    const viewer_id = new ObjectId(user_id)
+    const escaped_query = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(escaped_query, 'i')
+    const match = {
+      _id: { $ne: viewer_id },
+      verify: { $ne: UserVerifyStatus.Banned },
+      $or: [{ name: regex }, { username: regex }]
+    }
+
+    const [users, total] = await Promise.all([
+      databaseService.users
+        .aggregate([
+          { $match: match },
+          { $sort: { username: 1 } },
+          { $skip: limit * (page - 1) },
+          { $limit: limit },
+          {
+            $lookup: {
+              from: 'followers',
+              let: { target_user_id: '$_id' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ['$user_id', viewer_id] },
+                        { $eq: ['$followed_user_id', '$$target_user_id'] }
+                      ]
+                    }
+                  }
+                },
+                { $limit: 1 }
+              ],
+              as: 'viewer_follow'
+            }
+          },
+          {
+            $addFields: {
+              is_following: { $gt: [{ $size: '$viewer_follow' }, 0] }
+            }
+          },
+          {
+            $project: {
+              password: 0,
+              email: 0,
+              email_verify_token: 0,
+              forgot_password_token: 0,
+              twitter_circle: 0,
+              viewer_follow: 0
+            }
+          }
+        ])
+        .toArray(),
+      databaseService.users.countDocuments(match)
+    ])
+
+    return { users, total }
+  }
+
   // -------------------- Follow --------------------
   async follow(user_id: string, followed_user_id: string) {
     const follower = await databaseService.followers.findOne({

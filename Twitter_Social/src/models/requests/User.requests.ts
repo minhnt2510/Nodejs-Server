@@ -1,5 +1,5 @@
 import { JwtPayload } from 'jsonwebtoken'
-import { ParamsDictionary } from 'express-serve-static-core'
+import { ParamsDictionary, Query } from 'express-serve-static-core'
 import { TokenType, UserVerifyStatus } from '~/constants/enums'
 
 export interface TokenPayload extends JwtPayload {
@@ -62,6 +62,12 @@ export interface UpdateMeReqBody {
 
 export interface GetProfileReqParams extends ParamsDictionary {
   username: string
+}
+
+export interface SearchUsersQuery extends Query {
+  q: string
+  limit: string
+  page: string
 }
 
 export interface FollowReqBody {

@@ -27,7 +27,11 @@ const app = express()
 const httpServer = createServer(app)
 
 // ── Security ─────────────────────────────────────────────────────────────────
-app.use(helmet())
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+  })
+)
 app.use(
   cors({
     origin: '*',
@@ -38,9 +42,10 @@ app.use(
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: process.env.NODE_ENV === 'production' ? 300 : 5000,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS' || req.path.startsWith('/static/'),
   message: { message: 'Too many requests, please try again later.' }
 })
 app.use(limiter)
