@@ -1,11 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './components/layout/AppLayout'
 import { AuthProvider } from './contexts/AuthContext'
+import { ChatPage } from './pages/ChatPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { OAuthRedirectPage } from './pages/OAuthRedirectPage'
-import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { SearchPage } from './pages/SearchPage'
@@ -32,15 +32,7 @@ function App() {
             <Route element={<AppLayout />}>
               <Route index element={<HomePage />} />
               <Route path="search" element={<SearchPage />} />
-              <Route
-                path="chat"
-                element={
-                  <PlaceholderPage
-                    title="Messages"
-                    description="Private messaging will use socket.io and /conversations/receivers/:receiver_id."
-                  />
-                }
-              />
+              <Route path="chat" element={<ChatPage />} />
               <Route path="tweet/:tweetId" element={<TweetDetailPage />} />
               <Route path=":username" element={<ProfilePage />} />
             </Route>
