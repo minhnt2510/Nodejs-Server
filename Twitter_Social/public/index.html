@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Twitter Chat – Demo</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 1rem; color: #38bdf8; }
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 520px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .form-group { margin-bottom: 1rem; }
+    label { font-size: 0.8rem; color: #94a3b8; margin-bottom: 4px; display: block; }
+    input {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 0.95rem;
+    }
+    input:focus { outline: none; border-color: #38bdf8; }
+    button {
+      width: 100%;
+      padding: 0.7rem;
+      background: #0ea5e9;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #0284c7; }
+    #chat-box {
+      display: none;
+      margin-top: 1.5rem;
+    }
+    #messages {
+      height: 260px;
+      overflow-y: auto;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 0.8rem;
+      margin-bottom: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .msg {
+      padding: 6px 12px;
+      border-radius: 18px;
+      max-width: 75%;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .msg.sent {
+      background: #0ea5e9;
+      align-self: flex-end;
+    }
+    .msg.received {
+      background: #334155;
+      align-self: flex-start;
+    }
+    .send-row {
+      display: flex;
+      gap: 8px;
+    }
+    .send-row input { flex: 1; }
+    .send-row button { width: auto; padding: 0.6rem 1.2rem; }
+    #status { font-size: 0.78rem; color: #38bdf8; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>🐦 Twitter Chat Demo</h1>
+  <div class="card">
+    <div id="login-section">
+      <div class="form-group">
+        <label>Access Token</label>
+        <input type="text" id="access_token" placeholder="Bearer token từ /users/login"/>
+      </div>
+      <div class="form-group">
+        <label>Your User ID</label>
+        <input type="text" id="sender_id" placeholder="ObjectId của bạn"/>
+      </div>
+      <div class="form-group">
+        <label>Receiver User ID</label>
+        <input type="text" id="receiver_id" placeholder="ObjectId người nhận"/>
+      </div>
+      <button onclick="connect()">Kết nối</button>
+    </div>
+
+    <div id="chat-box">
+      <div id="status">🟢 Đang kết nối...</div>
+      <div id="messages"></div>
+      <div class="send-row">
+        <input type="text" id="message_input" placeholder="Nhập tin nhắn..." onkeydown="if(event.key==='Enter') sendMsg()"/>
+        <button onclick="sendMsg()">Gửi</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let socket
+    let sender_id, receiver_id
+
+    function connect() {
+      const access_token = document.getElementById('access_token').value.trim()
+      sender_id = document.getElementById('sender_id').value.trim()
+      receiver_id = document.getElementById('receiver_id').value.trim()
+
+      if (!access_token || !sender_id || !receiver_id) {
+        alert('Vui lòng điền đầy đủ thông tin!')
+        return
+      }
+
+      socket = io({
+        auth: { Authorization: `Bearer ${access_token}` }
+      })
+
+      socket.on('connect', () => {
+        document.getElementById('status').textContent = '🟢 Đã kết nối: ' + socket.id
+        document.getElementById('login-section').style.display = 'none'
+        document.getElementById('chat-box').style.display = 'block'
+      })
+
+      socket.on('receive_message', (data) => {
+        appendMessage(data.payload.content, 'received')
+      })
+
+      socket.on('connect_error', (err) => {
+        document.getElementById('status').textContent = '🔴 Lỗi: ' + err.message
+      })
+    }
+
+    function sendMsg() {
+      const input = document.getElementById('message_input')
+      const content = input.value.trim()
+      if (!content || !socket) return
+
+      socket.emit('send_message', {
+        payload: { sender_id, receiver_id, content }
+      })
+      appendMessage(content, 'sent')
+      input.value = ''
+    }
+
+    function appendMessage(content, type) {
+      const messages = document.getElementById('messages')
+      const div = document.createElement('div')
+      div.className = `msg ${type}`
+      div.textContent = content
+      messages.appendChild(div)
+      messages.scrollTop = messages.scrollHeight
+    }
+  </script>
+</body>
+</html>

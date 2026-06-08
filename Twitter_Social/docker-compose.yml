@@ -1,0 +1,25 @@
+version: '3.9'
+
+services:
+  twitter-api:
+    build:
+      context: .
+      target: production
+    container_name: twitter-social-api
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env
+    volumes:
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000/api-docs']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  uploads_data:
+  logs_data:
