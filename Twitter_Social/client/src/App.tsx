@@ -6,6 +6,7 @@ import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { OAuthRedirectPage } from './pages/OAuthRedirectPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
+import { ProfilePage } from './pages/ProfilePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { GuestRoute, ProtectedRoute } from './routes/Guards'
@@ -55,15 +56,7 @@ function App() {
                   />
                 }
               />
-              <Route
-                path=":username"
-                element={
-                  <PlaceholderPage
-                    title="Profile"
-                    description="Profile will call /users/:username and expose follow/unfollow when the viewer is verified."
-                  />
-                }
-              />
+              <Route path=":username" element={<ProfilePage />} />
             </Route>
           </Route>
 
