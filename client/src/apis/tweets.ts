@@ -1,4 +1,11 @@
-import type { ApiResponse, CreateTweetPayload, PaginatedTweets, Tweet } from '../types'
+import type {
+  ApiResponse,
+  CreateTweetPayload,
+  DeleteTweetResult,
+  PaginatedTweets,
+  Tweet,
+  UpdateTweetPayload
+} from '../types'
 import { http } from '../lib/http'
 
 function readResult<T>(response: ApiResponse<T>) {
@@ -18,6 +25,23 @@ export const tweetsApi = {
     const { data } = await http.get<ApiResponse<PaginatedTweets>>('/tweets/new-feeds', {
       params: { page, limit }
     })
+    return readResult(data)
+  },
+
+  async getUserTweets(userId: string, page = 1, limit = 10) {
+    const { data } = await http.get<ApiResponse<PaginatedTweets>>(`/tweets/users/${userId}`, {
+      params: { page, limit }
+    })
+    return readResult(data)
+  },
+
+  async updateTweet(tweetId: string, payload: UpdateTweetPayload) {
+    const { data } = await http.patch<ApiResponse<Tweet>>(`/tweets/${tweetId}`, payload)
+    return readResult(data)
+  },
+
+  async deleteTweet(tweetId: string) {
+    const { data } = await http.delete<ApiResponse<DeleteTweetResult>>(`/tweets/${tweetId}`)
     return readResult(data)
   },
 

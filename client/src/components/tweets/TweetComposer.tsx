@@ -115,7 +115,10 @@ export function TweetComposer({
         likes: tweet.likes ?? 0,
         retweet_count: tweet.retweet_count ?? 0,
         comment_count: tweet.comment_count ?? 0,
-        quote_count: tweet.quote_count ?? 0
+        quote_count: tweet.quote_count ?? 0,
+        is_liked: false,
+        is_bookmarked: false,
+        viewer_repost_id: null
       })
       setContent('')
       clearImages()

@@ -22,8 +22,6 @@ function updateTweetCount(tweet: Tweet, key: 'likes' | 'bookmarks' | 'retweet_co
 export function HomePage() {
   const { isVerified } = useAuth()
   const [tweets, setTweets] = useState<Tweet[]>([])
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
-  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
   const [totalPage, setTotalPage] = useState(1)
   const [error, setError] = useState('')
@@ -31,6 +29,10 @@ export function HomePage() {
 
   const replaceTweet = (tweetId: string, updater: (tweet: Tweet) => Tweet) => {
     setTweets((current) => current.map((tweet) => (tweet._id === tweetId ? updater(tweet) : tweet)))
+  }
+
+  const removeTweetIds = (tweetIds: string[]) => {
+    setTweets((current) => current.filter((tweet) => !tweetIds.includes(tweet._id)))
   }
 
   const loadFeed = useCallback(
@@ -62,22 +64,16 @@ export function HomePage() {
   }
 
   const onLike = async (tweet: Tweet) => {
-    const isLiked = likedIds.has(tweet._id)
+    const isLiked = Boolean(tweet.is_liked)
     setError('')
 
     try {
       if (isLiked) {
         await socialApi.unlikeTweet(tweet._id)
-        setLikedIds((current) => {
-          const next = new Set(current)
-          next.delete(tweet._id)
-          return next
-        })
-        replaceTweet(tweet._id, (item) => updateTweetCount(item, 'likes', -1))
+        replaceTweet(tweet._id, (item) => ({ ...updateTweetCount(item, 'likes', -1), is_liked: false }))
       } else {
         await socialApi.likeTweet(tweet._id)
-        setLikedIds((current) => new Set(current).add(tweet._id))
-        replaceTweet(tweet._id, (item) => updateTweetCount(item, 'likes', 1))
+        replaceTweet(tweet._id, (item) => ({ ...updateTweetCount(item, 'likes', 1), is_liked: true }))
       }
     } catch (err) {
       setError(getErrorMessage(err))
@@ -85,22 +81,16 @@ export function HomePage() {
   }
 
   const onBookmark = async (tweet: Tweet) => {
-    const isBookmarked = bookmarkedIds.has(tweet._id)
+    const isBookmarked = Boolean(tweet.is_bookmarked)
     setError('')
 
     try {
       if (isBookmarked) {
         await socialApi.unbookmarkTweet(tweet._id)
-        setBookmarkedIds((current) => {
-          const next = new Set(current)
-          next.delete(tweet._id)
-          return next
-        })
-        replaceTweet(tweet._id, (item) => updateTweetCount(item, 'bookmarks', -1))
+        replaceTweet(tweet._id, (item) => ({ ...updateTweetCount(item, 'bookmarks', -1), is_bookmarked: false }))
       } else {
         await socialApi.bookmarkTweet(tweet._id)
-        setBookmarkedIds((current) => new Set(current).add(tweet._id))
-        replaceTweet(tweet._id, (item) => updateTweetCount(item, 'bookmarks', 1))
+        replaceTweet(tweet._id, (item) => ({ ...updateTweetCount(item, 'bookmarks', 1), is_bookmarked: true }))
       }
     } catch (err) {
       setError(getErrorMessage(err))
@@ -111,18 +101,57 @@ export function HomePage() {
     setError('')
 
     try {
-      await tweetsApi.createTweet({
-        type: TweetType.Retweet,
-        audience: TweetAudience.Everyone,
-        content: '',
-        parent_id: tweet._id,
-        hashtags: [],
-        mentions: [],
-        medias: []
-      })
-      replaceTweet(tweet._id, (item) => updateTweetCount(item, 'retweet_count', 1))
+      if (tweet.viewer_repost_id) {
+        await tweetsApi.deleteTweet(tweet.viewer_repost_id)
+        replaceTweet(tweet._id, (item) => ({
+          ...updateTweetCount(item, 'retweet_count', -1),
+          viewer_repost_id: null
+        }))
+      } else {
+        const repost = await tweetsApi.createTweet({
+          type: TweetType.Retweet,
+          audience: TweetAudience.Everyone,
+          content: '',
+          parent_id: tweet._id,
+          hashtags: [],
+          mentions: [],
+          medias: []
+        })
+        replaceTweet(tweet._id, (item) => ({
+          ...updateTweetCount(item, 'retweet_count', 1),
+          viewer_repost_id: repost._id
+        }))
+      }
     } catch (err) {
       setError(getErrorMessage(err))
+    }
+  }
+
+  const onUpdateTweet = async (tweet: Tweet, content: string) => {
+    setError('')
+    try {
+      const updated = await tweetsApi.updateTweet(tweet._id, {
+        content,
+        hashtags: Array.from(new Set(Array.from(content.matchAll(/#([A-Za-z0-9_]+)/g), (match) => match[1].toLowerCase()))),
+        mentions: tweet.mentions.map((mention) => mention._id),
+        medias: tweet.medias,
+        audience: tweet.audience
+      })
+      replaceTweet(tweet._id, () => updated)
+    } catch (err) {
+      setError(getErrorMessage(err))
+      throw err
+    }
+  }
+
+  const onDeleteTweet = async (tweet: Tweet) => {
+    setError('')
+    try {
+      const result = await tweetsApi.deleteTweet(tweet._id)
+      removeTweetIds(result.deleted_tweet_ids)
+    } catch (err) {
+      setError(getErrorMessage(err))
+      throw err
     }
   }
 
@@ -160,11 +189,11 @@ export function HomePage() {
                 <TweetCard
                   key={tweet._id}
                   tweet={tweet}
-                  liked={likedIds.has(tweet._id)}
-                  bookmarked={bookmarkedIds.has(tweet._id)}
                   onLike={onLike}
                   onBookmark={onBookmark}
                   onRetweet={onRetweet}
+                  onUpdate={onUpdateTweet}
+                  onDelete={onDeleteTweet}
                 />
               ))}
             </div>

@@ -20,8 +20,8 @@ export interface Tweet {
   _id: string
   user_id: string
   user?: User
-  type: number
-  audience: number
+  type: TweetTypeValue
+  audience: TweetAudienceValue
   content: string
   parent_id: string | null
   hashtags: Array<{ _id: string; name: string }>
@@ -35,13 +35,16 @@ export interface Tweet {
   retweet_count?: number
   comment_count?: number
   quote_count?: number
+  is_liked?: boolean
+  is_bookmarked?: boolean
+  viewer_repost_id?: string | null
   created_at: string
   updated_at: string
 }
 
 export interface Media {
   url: string
-  type: number
+  type: MediaTypeValue
 }
 
 export interface Conversation {
@@ -102,6 +105,18 @@ export interface CreateTweetPayload {
   hashtags: string[]
   mentions: string[]
   medias: Media[]
+}
+
+export interface UpdateTweetPayload {
+  audience?: TweetAudienceValue
+  content?: string
+  hashtags?: string[]
+  mentions?: string[]
+  medias?: Media[]
+}
+
+export interface DeleteTweetResult {
+  deleted_tweet_ids: string[]
 }
 
 export const TweetType = {

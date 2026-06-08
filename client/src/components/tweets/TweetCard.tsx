@@ -1,7 +1,9 @@
+import { useState } from 'react'
+import type { FormEvent, MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import type { MouseEvent } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
 import type { Tweet } from '../../types'
-import { MediaType } from '../../types'
+import { MediaType, TweetType } from '../../types'
 import { formatCount, formatRelativeTime } from '../../utils/format'
 import { Avatar } from '../ui/Avatar'
 
@@ -12,6 +14,8 @@ interface TweetCardProps {
   onLike?: (tweet: Tweet) => void
   onBookmark?: (tweet: Tweet) => void
   onRetweet?: (tweet: Tweet) => void
+  onUpdate?: (tweet: Tweet, content: string) => Promise<void>
+  onDelete?: (tweet: Tweet) => Promise<void>
 }
 
 function renderContent(content: string) {
@@ -32,12 +36,52 @@ function stopClick(event: MouseEvent) {
   event.stopPropagation()
 }
 
-export function TweetCard({ tweet, liked, bookmarked, onLike, onBookmark, onRetweet }: TweetCardProps) {
+export function TweetCard({
+  tweet,
+  liked = tweet.is_liked,
+  bookmarked = tweet.is_bookmarked,
+  onLike,
+  onBookmark,
+  onRetweet,
+  onUpdate,
+  onDelete
+}: TweetCardProps) {
+  const { user } = useAuth()
   const navigate = useNavigate()
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState(tweet.content)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const author = tweet.user
   const authorName = author?.name || 'Twitter Social User'
   const username = author?.username || String(tweet.user_id).slice(-8)
   const tweetPath = `/tweet/${tweet._id}`
+  const isOwner = user?._id === tweet.user_id
+
+  const submitEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!onUpdate || !editContent.trim()) return
+
+    setIsSubmitting(true)
+    try {
+      await onUpdate(tweet, editContent.trim())
+      setIsEditing(false)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const deleteTweet = async (event: MouseEvent) => {
+    stopClick(event)
+    if (!onDelete || !window.confirm('Delete this item? This action cannot be undone.')) return
+
+    setIsSubmitting(true)
+    try {
+      await onDelete(tweet)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <article
@@ -58,9 +102,65 @@ export function TweetCard({ tweet, liked, bookmarked, onLike, onBookmark, onRetw
             <span className="text-twitter-muted">@{username}</span>
             <span className="text-twitter-soft">.</span>
             <span className="text-twitter-muted">{formatRelativeTime(tweet.created_at)}</span>
+            {isOwner ? (
+              <div className="ml-auto flex items-center gap-2">
+                {tweet.type !== TweetType.Retweet && onUpdate ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      stopClick(event)
+                      setEditContent(tweet.content)
+                      setIsEditing((current) => !current)
+                    }}
+                    className="rounded-full px-3 py-1 text-xs font-bold text-twitter-blue transition hover:bg-twitter-blue/10"
+                  >
+                    Edit
+                  </button>
+                ) : null}
+                {onDelete ? (
+                  <button
+                    type="button"
+                    onClick={deleteTweet}
+                    disabled={isSubmitting}
+                    className="rounded-full px-3 py-1 text-xs font-bold text-rose-300 transition hover:bg-rose-400/10 disabled:opacity-50"
+                  >
+                    {tweet.type === TweetType.Retweet ? 'Remove repost' : 'Delete'}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
-          {tweet.content ? (
+          {isEditing ? (
+            <form onSubmit={submitEdit} onClick={stopClick} className="mt-3 space-y-3">
+              <textarea
+                value={editContent}
+                onChange={(event) => setEditContent(event.target.value)}
+                className="min-h-24 w-full resize-none rounded-2xl border border-twitter-border bg-twitter-bg px-4 py-3 text-twitter-text outline-none focus:border-twitter-blue"
+                maxLength={280}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    stopClick(event)
+                    setIsEditing(false)
+                  }}
+                  className="rounded-full border border-twitter-border px-4 py-2 text-sm font-bold text-twitter-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !editContent.trim()}
+                  className="rounded-full bg-twitter-blue px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </form>
+          ) : tweet.content ? (
             <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-7 text-twitter-text">
               {renderContent(tweet.content)}
             </p>
@@ -112,9 +212,11 @@ export function TweetCard({ tweet, liked, bookmarked, onLike, onBookmark, onRetw
                 stopClick(event)
                 onRetweet?.(tweet)
               }}
-              className="rounded-full px-2 py-2 text-left transition hover:bg-emerald-400/10 hover:text-emerald-300"
+              className={`rounded-full px-2 py-2 text-left transition hover:bg-emerald-400/10 hover:text-emerald-300 ${
+                tweet.viewer_repost_id ? 'text-emerald-300' : ''
+              }`}
             >
-              Repost {formatCount(tweet.retweet_count)}
+              {tweet.viewer_repost_id ? 'Undo repost' : 'Repost'} {formatCount(tweet.retweet_count)}
             </button>
             <button
               type="button"

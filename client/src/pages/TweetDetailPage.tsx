@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { socialApi } from '../apis/social'
 import { tweetsApi } from '../apis/tweets'
 import { TweetCard } from '../components/tweets/TweetCard'
@@ -21,11 +21,10 @@ function updateTweetCount(tweet: Tweet, key: 'likes' | 'bookmarks' | 'retweet_co
 
 export function TweetDetailPage() {
   const { tweetId = '' } = useParams()
+  const navigate = useNavigate()
   const { isVerified } = useAuth()
   const [tweet, setTweet] = useState<Tweet | null>(null)
   const [replies, setReplies] = useState<Tweet[]>([])
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
-  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
   const [totalPage, setTotalPage] = useState(1)
   const [error, setError] = useState('')
@@ -76,22 +75,16 @@ export function TweetDetailPage() {
   }
 
   const onLike = async (item: Tweet) => {
-    const isLiked = likedIds.has(item._id)
+    const isLiked = Boolean(item.is_liked)
     setError('')
 
     try {
       if (isLiked) {
         await socialApi.unlikeTweet(item._id)
-        setLikedIds((current) => {
-          const next = new Set(current)
-          next.delete(item._id)
-          return next
-        })
-        replaceTweet(item._id, (current) => updateTweetCount(current, 'likes', -1))
+        replaceTweet(item._id, (current) => ({ ...updateTweetCount(current, 'likes', -1), is_liked: false }))
       } else {
         await socialApi.likeTweet(item._id)
-        setLikedIds((current) => new Set(current).add(item._id))
-        replaceTweet(item._id, (current) => updateTweetCount(current, 'likes', 1))
+        replaceTweet(item._id, (current) => ({ ...updateTweetCount(current, 'likes', 1), is_liked: true }))
       }
     } catch (err) {
       setError(getErrorMessage(err))
@@ -99,22 +92,16 @@ export function TweetDetailPage() {
   }
 
   const onBookmark = async (item: Tweet) => {
-    const isBookmarked = bookmarkedIds.has(item._id)
+    const isBookmarked = Boolean(item.is_bookmarked)
     setError('')
 
     try {
       if (isBookmarked) {
         await socialApi.unbookmarkTweet(item._id)
-        setBookmarkedIds((current) => {
-          const next = new Set(current)
-          next.delete(item._id)
-          return next
-        })
-        replaceTweet(item._id, (current) => updateTweetCount(current, 'bookmarks', -1))
+        replaceTweet(item._id, (current) => ({ ...updateTweetCount(current, 'bookmarks', -1), is_bookmarked: false }))
       } else {
         await socialApi.bookmarkTweet(item._id)
-        setBookmarkedIds((current) => new Set(current).add(item._id))
-        replaceTweet(item._id, (current) => updateTweetCount(current, 'bookmarks', 1))
+        replaceTweet(item._id, (current) => ({ ...updateTweetCount(current, 'bookmarks', 1), is_bookmarked: true }))
       }
     } catch (err) {
       setError(getErrorMessage(err))
@@ -125,18 +112,62 @@ export function TweetDetailPage() {
     setError('')
 
     try {
-      await tweetsApi.createTweet({
-        type: TweetType.Retweet,
-        audience: TweetAudience.Everyone,
-        content: '',
-        parent_id: item._id,
-        hashtags: [],
-        mentions: [],
-        medias: []
-      })
-      replaceTweet(item._id, (current) => updateTweetCount(current, 'retweet_count', 1))
+      if (item.viewer_repost_id) {
+        await tweetsApi.deleteTweet(item.viewer_repost_id)
+        replaceTweet(item._id, (current) => ({
+          ...updateTweetCount(current, 'retweet_count', -1),
+          viewer_repost_id: null
+        }))
+      } else {
+        const repost = await tweetsApi.createTweet({
+          type: TweetType.Retweet,
+          audience: TweetAudience.Everyone,
+          content: '',
+          parent_id: item._id,
+          hashtags: [],
+          mentions: [],
+          medias: []
+        })
+        replaceTweet(item._id, (current) => ({
+          ...updateTweetCount(current, 'retweet_count', 1),
+          viewer_repost_id: repost._id
+        }))
+      }
     } catch (err) {
       setError(getErrorMessage(err))
+    }
+  }
+
+  const onUpdateTweet = async (item: Tweet, content: string) => {
+    setError('')
+    try {
+      const updated = await tweetsApi.updateTweet(item._id, {
+        content,
+        hashtags: Array.from(new Set(Array.from(content.matchAll(/#([A-Za-z0-9_]+)/g), (match) => match[1].toLowerCase()))),
+        mentions: item.mentions.map((mention) => mention._id),
+        medias: item.medias,
+        audience: item.audience
+      })
+      replaceTweet(item._id, () => updated)
+    } catch (err) {
+      setError(getErrorMessage(err))
+      throw err
+    }
+  }
+
+  const onDeleteTweet = async (item: Tweet) => {
+    setError('')
+    try {
+      const result = await tweetsApi.deleteTweet(item._id)
+      if (result.deleted_tweet_ids.includes(tweetId)) {
+        navigate('/', { replace: true })
+        return
+      }
+      setReplies((current) => current.filter((reply) => !result.deleted_tweet_ids.includes(reply._id)))
+      setTweet((current) => (current ? updateTweetCount(current, 'comment_count', -1) : current))
+    } catch (err) {
+      setError(getErrorMessage(err))
+      throw err
     }
   }
 
@@ -165,11 +196,11 @@ export function TweetDetailPage() {
         <>
           <TweetCard
             tweet={tweet}
-            liked={likedIds.has(tweet._id)}
-            bookmarked={bookmarkedIds.has(tweet._id)}
             onLike={onLike}
             onBookmark={onBookmark}
             onRetweet={onRetweet}
+            onUpdate={onUpdateTweet}
+            onDelete={onDeleteTweet}
           />
 
           <TweetComposer
@@ -185,11 +216,11 @@ export function TweetDetailPage() {
               <TweetCard
                 key={reply._id}
                 tweet={reply}
-                liked={likedIds.has(reply._id)}
-                bookmarked={bookmarkedIds.has(reply._id)}
                 onLike={onLike}
                 onBookmark={onBookmark}
                 onRetweet={onRetweet}
+                onUpdate={onUpdateTweet}
+                onDelete={onDeleteTweet}
               />
             ))}
           </div>

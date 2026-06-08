@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { authApi } from '../apis/auth'
+import { mediasApi } from '../apis/medias'
+import { socialApi } from '../apis/social'
+import { tweetsApi } from '../apis/tweets'
+import { TweetCard } from '../components/tweets/TweetCard'
 import { Alert } from '../components/ui/Alert'
 import { Avatar } from '../components/ui/Avatar'
 import { useAuth } from '../contexts/AuthContext'
 import { getErrorMessage } from '../lib/http'
-import type { UpdateProfilePayload, User } from '../types'
+import type { Tweet, UpdateProfilePayload, User } from '../types'
+import { TweetAudience, TweetType } from '../types'
+
+const PAGE_SIZE = 10
+const MAX_PROFILE_IMAGE_SIZE = 300 * 1024
 
 function formatJoinDate(value?: string) {
   if (!value) return 'Recently joined'
@@ -27,50 +35,91 @@ function compactProfilePayload(profile: User | null, form: UpdateProfilePayload)
 
   keys.forEach((key) => {
     const value = form[key]?.trim()
-    if (!value) return
-    if (profile && value === profile[key]) return
+    if (!value || (profile && value === profile[key])) return
     payload[key] = value
   })
 
   return payload
 }
 
+function updateTweetCount(tweet: Tweet, key: 'likes' | 'bookmarks' | 'retweet_count', delta: number) {
+  return {
+    ...tweet,
+    [key]: Math.max(0, (tweet[key] ?? 0) + delta)
+  }
+}
+
 export function ProfilePage() {
   const { username = '' } = useParams()
   const { user, isVerified, refreshUser } = useAuth()
   const [profile, setProfile] = useState<User | null>(null)
+  const [profileTweets, setProfileTweets] = useState<Tweet[]>([])
   const [form, setForm] = useState<UpdateProfilePayload>({})
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [coverFile, setCoverFile] = useState<File | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [isFollowing, setIsFollowing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [isTweetsLoading, setIsTweetsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalPage, setTotalPage] = useState(1)
   const [error, setError] = useState('')
+  const [tweetError, setTweetError] = useState('')
   const [status, setStatus] = useState('')
 
   const isOwnProfile = user?._id === profile?._id
 
+  const replaceTweet = (tweetId: string, updater: (tweet: Tweet) => Tweet) => {
+    setProfileTweets((current) => current.map((tweet) => (tweet._id === tweetId ? updater(tweet) : tweet)))
+  }
+
+  const removeTweetIds = (tweetIds: string[]) => {
+    setProfileTweets((current) => current.filter((tweet) => !tweetIds.includes(tweet._id)))
+  }
+
+  const loadTweets = async (profileId: string, nextPage = 1, replace = false) => {
+    setTweetError('')
+    setIsTweetsLoading(true)
+    try {
+      const result = await tweetsApi.getUserTweets(profileId, nextPage, PAGE_SIZE)
+      setProfileTweets((current) => (replace ? result.tweets : [...current, ...result.tweets]))
+      setPage(result.page)
+      setTotalPage(result.total_page)
+    } catch (err) {
+      setTweetError(getErrorMessage(err))
+    } finally {
+      setIsTweetsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!username) return
 
-    queueMicrotask(() => {
+    queueMicrotask(async () => {
       setIsLoading(true)
       setError('')
-      authApi
-        .getProfile(username)
-        .then((result) => {
-          setProfile(result)
-          setForm({
-            name: result.name,
-            bio: result.bio,
-            location: result.location,
-            website: result.website,
-            username: result.username,
-            avatar: result.avatar,
-            cover_photo: result.cover_photo
-          })
+      setTweetError('')
+      setProfileTweets([])
+      try {
+        const result = await authApi.getProfile(username)
+        setProfile(result)
+        setIsFollowing(Boolean(result.is_following))
+        setForm({
+          name: result.name,
+          bio: result.bio,
+          location: result.location,
+          website: result.website,
+          username: result.username,
+          avatar: result.avatar,
+          cover_photo: result.cover_photo
         })
-        .catch((err) => setError(getErrorMessage(err)))
-        .finally(() => setIsLoading(false))
+        await loadTweets(result._id, 1, true)
+      } catch (err) {
+        setError(getErrorMessage(err))
+      } finally {
+        setIsLoading(false)
+      }
     })
   }, [username])
 
@@ -94,23 +143,57 @@ export function ProfilePage() {
     }
   }
 
+  const selectProfileImage =
+    (setter: (file: File | null) => void) => (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0] || null
+      setError('')
+      if (!file) {
+        setter(null)
+        return
+      }
+      if (!file.type.startsWith('image/')) {
+        event.target.value = ''
+        setError('Please choose an image file.')
+        return
+      }
+      if (file.size > MAX_PROFILE_IMAGE_SIZE) {
+        event.target.value = ''
+        setError('Profile images must be 300 KB or smaller.')
+        return
+      }
+      setter(file)
+    }
+
   const onSaveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!profile) return
-
-    const payload = compactProfilePayload(profile, form)
-    if (!Object.keys(payload).length) {
-      setIsEditing(false)
-      return
-    }
 
     setError('')
     setStatus('')
     setIsSubmitting(true)
 
     try {
+      const nextForm = { ...form }
+      if (avatarFile) {
+        const [avatar] = await mediasApi.uploadImages([avatarFile])
+        nextForm.avatar = avatar.url
+      }
+      if (coverFile) {
+        const [cover] = await mediasApi.uploadImages([coverFile])
+        nextForm.cover_photo = cover.url
+      }
+
+      const payload = compactProfilePayload(profile, nextForm)
+      if (!Object.keys(payload).length) {
+        setIsEditing(false)
+        return
+      }
+
       const updated = await authApi.updateMe(payload)
       setProfile(updated)
+      setForm(nextForm)
+      setAvatarFile(null)
+      setCoverFile(null)
       setIsEditing(false)
       setStatus('Profile updated successfully.')
       await refreshUser()
@@ -118,6 +201,99 @@ export function ProfilePage() {
       setError(getErrorMessage(err))
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const onLike = async (tweet: Tweet) => {
+    setTweetError('')
+    try {
+      if (tweet.is_liked) {
+        await socialApi.unlikeTweet(tweet._id)
+        replaceTweet(tweet._id, (item) => ({ ...updateTweetCount(item, 'likes', -1), is_liked: false }))
+      } else {
+        await socialApi.likeTweet(tweet._id)
+        replaceTweet(tweet._id, (item) => ({ ...updateTweetCount(item, 'likes', 1), is_liked: true }))
+      }
+    } catch (err) {
+      setTweetError(getErrorMessage(err))
+    }
+  }
+
+  const onBookmark = async (tweet: Tweet) => {
+    setTweetError('')
+    try {
+      if (tweet.is_bookmarked) {
+        await socialApi.unbookmarkTweet(tweet._id)
+        replaceTweet(tweet._id, (item) => ({ ...updateTweetCount(item, 'bookmarks', -1), is_bookmarked: false }))
+      } else {
+        await socialApi.bookmarkTweet(tweet._id)
+        replaceTweet(tweet._id, (item) => ({ ...updateTweetCount(item, 'bookmarks', 1), is_bookmarked: true }))
+      }
+    } catch (err) {
+      setTweetError(getErrorMessage(err))
+    }
+  }
+
+  const onRetweet = async (tweet: Tweet) => {
+    setTweetError('')
+    try {
+      if (tweet.viewer_repost_id) {
+        const result = await tweetsApi.deleteTweet(tweet.viewer_repost_id)
+        removeTweetIds(result.deleted_tweet_ids)
+        replaceTweet(tweet._id, (item) => ({
+          ...updateTweetCount(item, 'retweet_count', -1),
+          viewer_repost_id: null
+        }))
+      } else {
+        const repost = await tweetsApi.createTweet({
+          type: TweetType.Retweet,
+          audience: TweetAudience.Everyone,
+          content: '',
+          parent_id: tweet._id,
+          hashtags: [],
+          mentions: [],
+          medias: []
+        })
+        replaceTweet(tweet._id, (item) => ({
+          ...updateTweetCount(item, 'retweet_count', 1),
+          viewer_repost_id: repost._id
+        }))
+        if (isOwnProfile) {
+          setProfileTweets((current) => [repost, ...current])
+        }
+      }
+    } catch (err) {
+      setTweetError(getErrorMessage(err))
+    }
+  }
+
+  const onUpdateTweet = async (tweet: Tweet, content: string) => {
+    setTweetError('')
+    try {
+      const updated = await tweetsApi.updateTweet(tweet._id, {
+        content,
+        hashtags: Array.from(
+          new Set(Array.from(content.matchAll(/#([A-Za-z0-9_]+)/g), (match) => match[1].toLowerCase()))
+        ),
+        mentions: tweet.mentions.map((mention) => mention._id),
+        medias: tweet.medias,
+        audience: tweet.audience
+      })
+      replaceTweet(tweet._id, () => updated)
+    } catch (err) {
+      setTweetError(getErrorMessage(err))
+      throw err
+    }
+  }
+
+  const onDeleteTweet = async (tweet: Tweet) => {
+    setTweetError('')
+    try {
+      const result = await tweetsApi.deleteTweet(tweet._id)
+      removeTweetIds(result.deleted_tweet_ids)
+    } catch (err) {
+      setTweetError(getErrorMessage(err))
+      throw err
     }
   }
 
@@ -198,16 +374,17 @@ export function ProfilePage() {
             </div>
 
             {isEditing ? (
-              <form onSubmit={onSaveProfile} className="mt-6 space-y-4 rounded-[2rem] border border-twitter-border bg-twitter-surface/50 p-5">
+              <form
+                onSubmit={onSaveProfile}
+                className="mt-6 space-y-4 rounded-[2rem] border border-twitter-border bg-twitter-surface/50 p-5"
+              >
                 {(
                   [
                     ['name', 'Name'],
                     ['username', 'Username'],
                     ['bio', 'Bio'],
                     ['location', 'Location'],
-                    ['website', 'Website'],
-                    ['avatar', 'Avatar URL'],
-                    ['cover_photo', 'Cover URL']
+                    ['website', 'Website']
                   ] as Array<[keyof UpdateProfilePayload, string]>
                 ).map(([key, label]) => (
                   <label key={key} className="block">
@@ -227,6 +404,34 @@ export function ProfilePage() {
                     )}
                   </label>
                 ))}
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block rounded-2xl border border-dashed border-twitter-border p-4">
+                    <span className="mb-2 block text-sm font-semibold text-twitter-muted">Avatar image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={selectProfileImage(setAvatarFile)}
+                      className="block w-full text-sm text-twitter-muted file:mr-3 file:rounded-full file:border-0 file:bg-twitter-blue file:px-4 file:py-2 file:font-bold file:text-white"
+                    />
+                    <span className="mt-2 block truncate text-xs text-twitter-soft">
+                      {avatarFile?.name || 'Maximum 300 KB'}
+                    </span>
+                  </label>
+                  <label className="block rounded-2xl border border-dashed border-twitter-border p-4">
+                    <span className="mb-2 block text-sm font-semibold text-twitter-muted">Cover image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={selectProfileImage(setCoverFile)}
+                      className="block w-full text-sm text-twitter-muted file:mr-3 file:rounded-full file:border-0 file:bg-twitter-blue file:px-4 file:py-2 file:font-bold file:text-white"
+                    />
+                    <span className="mt-2 block truncate text-xs text-twitter-soft">
+                      {coverFile?.name || 'Maximum 300 KB'}
+                    </span>
+                  </label>
+                </div>
+
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -238,8 +443,45 @@ export function ProfilePage() {
             ) : null}
           </div>
 
-          <div className="border-t border-twitter-border p-8 text-center text-sm leading-6 text-twitter-muted">
-            User tweet listing is not exposed by the current backend routes yet. The profile page is wired to user and follow APIs.
+          <div className="border-t border-twitter-border">
+            <div className="border-b border-twitter-border px-5 py-3 text-sm font-black text-twitter-text">Posts</div>
+
+            {tweetError ? (
+              <div className="p-5">
+                <Alert type="error">{tweetError}</Alert>
+              </div>
+            ) : null}
+
+            {profileTweets.length ? (
+              profileTweets.map((tweet) => (
+                <TweetCard
+                  key={tweet._id}
+                  tweet={tweet}
+                  onLike={onLike}
+                  onBookmark={onBookmark}
+                  onRetweet={onRetweet}
+                  onUpdate={onUpdateTweet}
+                  onDelete={onDeleteTweet}
+                />
+              ))
+            ) : !isTweetsLoading && !tweetError ? (
+              <div className="p-8 text-center text-sm text-twitter-muted">No posts yet.</div>
+            ) : null}
+
+            <div className="p-5">
+              {page < totalPage ? (
+                <button
+                  type="button"
+                  onClick={() => void loadTweets(profile._id, page + 1)}
+                  disabled={isTweetsLoading}
+                  className="w-full rounded-full border border-twitter-border px-5 py-3 font-black text-twitter-text transition hover:bg-white/5 disabled:opacity-60"
+                >
+                  {isTweetsLoading ? 'Loading...' : 'Load more'}
+                </button>
+              ) : isTweetsLoading ? (
+                <div className="mx-auto size-9 animate-spin rounded-full border-2 border-twitter-border border-t-twitter-blue" />
+              ) : null}
+            </div>
           </div>
         </>
       ) : null}
