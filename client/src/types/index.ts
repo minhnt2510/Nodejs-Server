@@ -11,6 +11,7 @@ export interface User {
   date_of_birth?: string
   verify?: number
   twitter_circle?: string[]
+  is_following?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -70,6 +71,13 @@ export interface PaginatedTweets {
 
 export interface PaginatedConversations {
   conversations: Conversation[]
+  limit: number
+  page: number
+  total_page: number
+}
+
+export interface PaginatedUsers {
+  users: User[]
   limit: number
   page: number
   total_page: number

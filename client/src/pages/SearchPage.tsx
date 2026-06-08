@@ -1,17 +1,21 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { authApi } from '../apis/auth'
 import { searchApi } from '../apis/search'
 import { socialApi } from '../apis/social'
 import { tweetsApi } from '../apis/tweets'
 import { TweetCard } from '../components/tweets/TweetCard'
 import { Alert } from '../components/ui/Alert'
+import { Avatar } from '../components/ui/Avatar'
 import { useAuth } from '../contexts/AuthContext'
 import { getErrorMessage } from '../lib/http'
-import type { Tweet } from '../types'
+import type { Tweet, User } from '../types'
 import { TweetAudience, TweetType } from '../types'
 
 const PAGE_SIZE = 10
 
+type SearchMode = 'tweets' | 'people'
 type MediaFilter = '' | 'image' | 'video'
 type PeopleFilter = '0' | '1'
 
@@ -24,11 +28,13 @@ function updateTweetCount(tweet: Tweet, key: 'likes' | 'bookmarks' | 'retweet_co
 
 export function SearchPage() {
   const { isVerified } = useAuth()
+  const [mode, setMode] = useState<SearchMode>('tweets')
   const [query, setQuery] = useState('')
   const [submittedQuery, setSubmittedQuery] = useState('')
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('')
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>('0')
   const [tweets, setTweets] = useState<Tweet[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
@@ -50,17 +56,26 @@ export function SearchPage() {
     setError('')
     setIsLoading(true)
     try {
-      const result = await searchApi.searchTweets({
-        content: content.trim(),
-        page: nextPage,
-        limit: PAGE_SIZE,
-        media_type: mediaFilter || undefined,
-        people_follow: peopleFilter
-      })
+      if (mode === 'people') {
+        const result = await authApi.searchUsers(content.trim(), nextPage, PAGE_SIZE)
+        setUsers((current) => (replace ? result.users : [...current, ...result.users]))
+        setTweets([])
+        setPage(result.page)
+        setTotalPage(result.total_page)
+      } else {
+        const result = await searchApi.searchTweets({
+          content: content.trim(),
+          page: nextPage,
+          limit: PAGE_SIZE,
+          media_type: mediaFilter || undefined,
+          people_follow: peopleFilter
+        })
+        setTweets((current) => (replace ? result.tweets : [...current, ...result.tweets]))
+        setUsers([])
+        setPage(result.page)
+        setTotalPage(result.total_page)
+      }
       setSubmittedQuery(content.trim())
-      setTweets((current) => (replace ? result.tweets : [...current, ...result.tweets]))
-      setPage(result.page)
-      setTotalPage(result.total_page)
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -71,6 +86,34 @@ export function SearchPage() {
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     void runSearch(1, true, query)
+  }
+
+  const changeMode = (nextMode: SearchMode) => {
+    setMode(nextMode)
+    setTweets([])
+    setUsers([])
+    setSubmittedQuery('')
+    setPage(1)
+    setTotalPage(1)
+    setError('')
+  }
+
+  const onFollow = async (target: User) => {
+    setError('')
+    try {
+      if (target.is_following) {
+        await authApi.unfollow(target._id)
+      } else {
+        await authApi.follow(target._id)
+      }
+      setUsers((current) =>
+        current.map((user) =>
+          user._id === target._id ? { ...user, is_following: !user.is_following } : user
+        )
+      )
+    } catch (err) {
+      setError(getErrorMessage(err))
+    }
   }
 
   const onLike = async (tweet: Tweet) => {
@@ -121,7 +164,6 @@ export function SearchPage() {
 
   const onRetweet = async (tweet: Tweet) => {
     setError('')
-
     try {
       await tweetsApi.createTweet({
         type: TweetType.Retweet,
@@ -144,42 +186,61 @@ export function SearchPage() {
         <h1 className="text-xl font-black">Search</h1>
       </header>
 
+      <div className="grid grid-cols-2 border-b border-twitter-border">
+        {(['tweets', 'people'] as SearchMode[]).map((item) => (
+          <button
+            key={item}
+            type="button"
+            onClick={() => changeMode(item)}
+            className={`border-b-2 px-5 py-4 text-sm font-black capitalize transition ${
+              mode === item
+                ? 'border-twitter-blue text-twitter-text'
+                : 'border-transparent text-twitter-muted hover:bg-white/5'
+            }`}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={onSubmit} className="space-y-4 border-b border-twitter-border p-5">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           className="w-full rounded-full border border-twitter-border bg-twitter-surface px-5 py-3 text-twitter-text outline-none transition focus:border-twitter-blue focus:ring-4 focus:ring-twitter-blue/10"
-          placeholder="Search tweets"
+          placeholder={mode === 'people' ? 'Search by name or username' : 'Search tweets'}
           required
         />
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <select
-            value={mediaFilter}
-            onChange={(event) => setMediaFilter(event.target.value as MediaFilter)}
-            className="rounded-2xl border border-twitter-border bg-twitter-bg px-4 py-3 text-sm font-semibold text-twitter-text outline-none"
-          >
-            <option value="">All media</option>
-            <option value="image">Images</option>
-            <option value="video">Videos</option>
-          </select>
+        {mode === 'tweets' ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <select
+              value={mediaFilter}
+              onChange={(event) => setMediaFilter(event.target.value as MediaFilter)}
+              className="rounded-2xl border border-twitter-border bg-twitter-bg px-4 py-3 text-sm font-semibold text-twitter-text outline-none"
+            >
+              <option value="">All media</option>
+              <option value="image">Images</option>
+              <option value="video">Videos</option>
+            </select>
 
-          <select
-            value={peopleFilter}
-            onChange={(event) => setPeopleFilter(event.target.value as PeopleFilter)}
-            className="rounded-2xl border border-twitter-border bg-twitter-bg px-4 py-3 text-sm font-semibold text-twitter-text outline-none"
-          >
-            <option value="0">From anyone</option>
-            <option value="1">People you follow</option>
-          </select>
-        </div>
+            <select
+              value={peopleFilter}
+              onChange={(event) => setPeopleFilter(event.target.value as PeopleFilter)}
+              className="rounded-2xl border border-twitter-border bg-twitter-bg px-4 py-3 text-sm font-semibold text-twitter-text outline-none"
+            >
+              <option value="0">From anyone</option>
+              <option value="1">People you follow</option>
+            </select>
+          </div>
+        ) : null}
 
         <button
           type="submit"
           disabled={isLoading || !isVerified}
           className="rounded-full bg-twitter-blue px-5 py-3 font-black text-white shadow-lg shadow-twitter-blue/20 transition hover:bg-twitter-blue-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isLoading ? 'Searching...' : 'Search'}
+          {isLoading ? 'Searching...' : `Search ${mode}`}
         </button>
       </form>
 
@@ -195,7 +256,43 @@ export function SearchPage() {
         </div>
       ) : null}
 
-      {tweets.length ? (
+      {mode === 'people' && users.length ? (
+        <div>
+          {users.map((target) => (
+            <article key={target._id} className="flex gap-4 border-b border-twitter-border p-5">
+              <Link to={`/${target.username}`}>
+                <Avatar src={target.avatar} name={target.name} />
+              </Link>
+              <div className="min-w-0 flex-1">
+                <Link to={`/${target.username}`} className="font-black text-twitter-text hover:underline">
+                  {target.name}
+                </Link>
+                <p className="text-sm text-twitter-muted">@{target.username}</p>
+                {target.bio ? <p className="mt-2 text-sm leading-6 text-twitter-text">{target.bio}</p> : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    to={`/chat?receiver_id=${target._id}`}
+                    className="rounded-full border border-twitter-border px-4 py-2 text-sm font-black text-twitter-text transition hover:bg-white/5"
+                  >
+                    Message
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void onFollow(target)}
+                    className={`rounded-full px-4 py-2 text-sm font-black transition ${
+                      target.is_following
+                        ? 'border border-twitter-border text-twitter-text hover:bg-white/5'
+                        : 'bg-twitter-text text-twitter-bg hover:bg-white'
+                    }`}
+                  >
+                    {target.is_following ? 'Following' : 'Follow'}
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : mode === 'tweets' && tweets.length ? (
         <div>
           {tweets.map((tweet) => (
             <TweetCard
@@ -210,10 +307,12 @@ export function SearchPage() {
           ))}
         </div>
       ) : submittedQuery && !isLoading ? (
-        <div className="p-8 text-center text-sm text-twitter-muted">No tweets matched your search.</div>
+        <div className="p-8 text-center text-sm text-twitter-muted">No {mode} matched your search.</div>
       ) : (
         <div className="p-8 text-center text-sm leading-6 text-twitter-muted">
-          Search uses MongoDB text index through the backend `/search` route.
+          {mode === 'people'
+            ? 'Find another account, then follow, view profile, or start a message.'
+            : 'Search tweet content through the backend text index.'}
         </div>
       )}
 

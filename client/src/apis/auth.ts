@@ -1,4 +1,4 @@
-import type { ApiResponse, AuthResponse, UpdateProfilePayload, User } from '../types'
+import type { ApiResponse, AuthResponse, PaginatedUsers, UpdateProfilePayload, User } from '../types'
 import { http } from '../lib/http'
 
 export interface LoginPayload {
@@ -81,6 +81,13 @@ export const authApi = {
 
   async getProfile(username: string) {
     const { data } = await http.get<ApiResponse<User>>(`/users/${username}`)
+    return readResult(data)
+  },
+
+  async searchUsers(q: string, page = 1, limit = 10) {
+    const { data } = await http.get<ApiResponse<PaginatedUsers>>('/users/search', {
+      params: { q, page, limit }
+    })
     return readResult(data)
   },
 

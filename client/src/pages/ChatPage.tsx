@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { io } from 'socket.io-client'
 import type { Socket } from 'socket.io-client'
 import { conversationsApi } from '../apis/conversations'
@@ -19,8 +20,10 @@ interface SocketMessage {
 
 export function ChatPage() {
   const { user, isVerified } = useAuth()
+  const [searchParams] = useSearchParams()
+  const requestedReceiverId = searchParams.get('receiver_id') || ''
   const socketRef = useRef<Socket | null>(null)
-  const [receiverId, setReceiverId] = useState('')
+  const [receiverId, setReceiverId] = useState(requestedReceiverId)
   const [activeReceiverId, setActiveReceiverId] = useState('')
   const [messages, setMessages] = useState<Conversation[]>([])
   const [content, setContent] = useState('')
@@ -29,6 +32,26 @@ export function ChatPage() {
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const loadConversation = useCallback(async (nextPage: number, replace: boolean, nextReceiverId: string) => {
+    if (!nextReceiverId.trim()) return
+
+    setError('')
+    setIsLoading(true)
+    try {
+      const result = await conversationsApi.getConversations(nextReceiverId.trim(), nextPage, PAGE_SIZE)
+      const ordered = [...result.conversations].reverse()
+      setMessages((current) => (replace ? ordered : [...ordered, ...current]))
+      setActiveReceiverId(nextReceiverId.trim())
+      setReceiverId(nextReceiverId.trim())
+      setPage(result.page)
+      setTotalPage(result.total_page)
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     if (!isVerified) return
@@ -68,25 +91,10 @@ export function ChatPage() {
     }
   }, [isVerified])
 
-  const loadConversation = async (nextPage = 1, replace = true, nextReceiverId = activeReceiverId || receiverId) => {
-    if (!nextReceiverId.trim()) return
-
-    setError('')
-    setIsLoading(true)
-    try {
-      const result = await conversationsApi.getConversations(nextReceiverId.trim(), nextPage, PAGE_SIZE)
-      const ordered = [...result.conversations].reverse()
-      setMessages((current) => (replace ? ordered : [...ordered, ...current]))
-      setActiveReceiverId(nextReceiverId.trim())
-      setReceiverId(nextReceiverId.trim())
-      setPage(result.page)
-      setTotalPage(result.total_page)
-    } catch (err) {
-      setError(getErrorMessage(err))
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  useEffect(() => {
+    if (!isVerified || !requestedReceiverId) return
+    queueMicrotask(() => void loadConversation(1, true, requestedReceiverId))
+  }, [isVerified, loadConversation, requestedReceiverId])
 
   const onSelectConversation = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -168,7 +176,7 @@ export function ChatPage() {
         {page < totalPage ? (
           <button
             type="button"
-            onClick={() => void loadConversation(page + 1, false)}
+            onClick={() => void loadConversation(page + 1, false, activeReceiverId)}
             disabled={isLoading}
             className="mb-5 w-full rounded-full border border-twitter-border px-5 py-2 text-sm font-black text-twitter-text transition hover:bg-white/5 disabled:opacity-60"
           >
