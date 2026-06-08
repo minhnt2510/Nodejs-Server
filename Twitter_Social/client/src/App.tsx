@@ -9,6 +9,7 @@ import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { SearchPage } from './pages/SearchPage'
+import { TweetDetailPage } from './pages/TweetDetailPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { GuestRoute, ProtectedRoute } from './routes/Guards'
 
@@ -40,15 +41,7 @@ function App() {
                   />
                 }
               />
-              <Route
-                path="tweet/:tweetId"
-                element={
-                  <PlaceholderPage
-                    title="Tweet detail"
-                    description="Tweet detail will call /tweets/:tweet_id and /tweets/:tweet_id/children."
-                  />
-                }
-              />
+              <Route path="tweet/:tweetId" element={<TweetDetailPage />} />
               <Route path=":username" element={<ProfilePage />} />
             </Route>
           </Route>

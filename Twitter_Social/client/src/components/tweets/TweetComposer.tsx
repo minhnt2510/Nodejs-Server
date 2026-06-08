@@ -4,13 +4,17 @@ import { mediasApi } from '../../apis/medias'
 import { tweetsApi } from '../../apis/tweets'
 import { useAuth } from '../../contexts/AuthContext'
 import { getErrorMessage } from '../../lib/http'
-import type { Tweet } from '../../types'
+import type { Tweet, TweetTypeValue } from '../../types'
 import { TweetAudience, TweetType } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { Alert } from '../ui/Alert'
 
 interface TweetComposerProps {
   onCreated: (tweet: Tweet) => void
+  parentId?: string | null
+  tweetType?: TweetTypeValue
+  placeholder?: string
+  submitLabel?: string
 }
 
 interface ImagePreview {
@@ -26,7 +30,13 @@ function extractHashtags(content: string) {
   return Array.from(new Set(Array.from(matches, (match) => match[1].toLowerCase())))
 }
 
-export function TweetComposer({ onCreated }: TweetComposerProps) {
+export function TweetComposer({
+  onCreated,
+  parentId = null,
+  tweetType = TweetType.Tweet,
+  placeholder = 'What is happening?',
+  submitLabel = 'Post'
+}: TweetComposerProps) {
   const { user, isVerified } = useAuth()
   const [content, setContent] = useState('')
   const [images, setImages] = useState<ImagePreview[]>([])
@@ -87,10 +97,10 @@ export function TweetComposer({ onCreated }: TweetComposerProps) {
     try {
       const medias = images.length ? await mediasApi.uploadImages(images.map((image) => image.file)) : []
       const tweet = await tweetsApi.createTweet({
-        type: TweetType.Tweet,
+        type: tweetType,
         audience: TweetAudience.Everyone,
         content: content.trim(),
-        parent_id: null,
+        parent_id: parentId,
         hashtags: extractHashtags(content),
         mentions: [],
         medias
@@ -127,7 +137,7 @@ export function TweetComposer({ onCreated }: TweetComposerProps) {
             onChange={(event) => setContent(event.target.value)}
             disabled={!isVerified || isSubmitting}
             className="mt-2 min-h-28 w-full resize-none bg-transparent text-xl text-twitter-text outline-none placeholder:text-twitter-soft disabled:opacity-60"
-            placeholder={isVerified ? 'What is happening?' : 'Verify your email to post'}
+            placeholder={isVerified ? placeholder : 'Verify your email to post'}
             maxLength={280}
           />
 
@@ -168,7 +178,7 @@ export function TweetComposer({ onCreated }: TweetComposerProps) {
                 disabled={!isVerified || isSubmitting || (!content.trim() && images.length === 0)}
                 className="rounded-full bg-twitter-blue px-5 py-2 font-black text-white shadow-lg shadow-twitter-blue/20 transition hover:bg-twitter-blue-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSubmitting ? 'Posting...' : 'Post'}
+                {isSubmitting ? 'Posting...' : submitLabel}
               </button>
             </div>
           </div>
