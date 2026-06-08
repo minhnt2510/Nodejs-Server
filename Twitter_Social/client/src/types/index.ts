@@ -56,7 +56,7 @@ export interface AuthResponse {
   refresh_token: string
 }
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   message: string
   result?: T
 }

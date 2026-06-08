@@ -16,11 +16,13 @@ export function VerifyEmailPage() {
   useEffect(() => {
     if (!token) return
 
-    setIsSubmitting(true)
-    verifyEmail(token)
-      .then(() => setStatus('Your email has been verified. You can now post, search, and chat.'))
-      .catch((err) => setError(getErrorMessage(err)))
-      .finally(() => setIsSubmitting(false))
+    queueMicrotask(() => {
+      setIsSubmitting(true)
+      verifyEmail(token)
+        .then(() => setStatus('Your email has been verified. You can now post, search, and chat.'))
+        .catch((err) => setError(getErrorMessage(err)))
+        .finally(() => setIsSubmitting(false))
+    })
   }, [token, verifyEmail])
 
   const onResend = async () => {

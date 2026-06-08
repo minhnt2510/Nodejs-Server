@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { authApi } from '../apis/auth'
@@ -52,34 +52,30 @@ export function ProfilePage() {
   useEffect(() => {
     if (!username) return
 
-    setIsLoading(true)
-    setError('')
-    authApi
-      .getProfile(username)
-      .then((result) => {
-        setProfile(result)
-        setForm({
-          name: result.name,
-          bio: result.bio,
-          location: result.location,
-          website: result.website,
-          username: result.username,
-          avatar: result.avatar,
-          cover_photo: result.cover_photo
+    queueMicrotask(() => {
+      setIsLoading(true)
+      setError('')
+      authApi
+        .getProfile(username)
+        .then((result) => {
+          setProfile(result)
+          setForm({
+            name: result.name,
+            bio: result.bio,
+            location: result.location,
+            website: result.website,
+            username: result.username,
+            avatar: result.avatar,
+            cover_photo: result.cover_photo
+          })
         })
-      })
-      .catch((err) => setError(getErrorMessage(err)))
-      .finally(() => setIsLoading(false))
+        .catch((err) => setError(getErrorMessage(err)))
+        .finally(() => setIsLoading(false))
+    })
   }, [username])
 
   const displayUsername = profile?.username || username
-  const coverStyle = useMemo(
-    () =>
-      profile?.cover_photo
-        ? { backgroundImage: `url(${profile.cover_photo})` }
-        : undefined,
-    [profile?.cover_photo]
-  )
+  const coverStyle = profile?.cover_photo ? { backgroundImage: `url(${profile.cover_photo})` } : undefined
 
   const onFollow = async () => {
     if (!profile) return

@@ -65,7 +65,7 @@ export function TweetDetailPage() {
   )
 
   useEffect(() => {
-    void loadReplies(1, true)
+    queueMicrotask(() => void loadReplies(1, true))
   }, [loadReplies])
 
   const onReplyCreated = (reply: Tweet) => {

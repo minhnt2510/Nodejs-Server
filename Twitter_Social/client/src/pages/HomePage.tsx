@@ -54,7 +54,7 @@ export function HomePage() {
   )
 
   useEffect(() => {
-    void loadFeed(1, true)
+    queueMicrotask(() => void loadFeed(1, true))
   }, [loadFeed])
 
   const onCreated = (tweet: Tweet) => {

@@ -12,17 +12,19 @@ export function OAuthRedirectPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const accessToken = searchParams.get('access_token')
-    const refreshToken = searchParams.get('refresh_token')
+    queueMicrotask(() => {
+      const accessToken = searchParams.get('access_token')
+      const refreshToken = searchParams.get('refresh_token')
 
-    if (!accessToken || !refreshToken) {
-      setError('Missing OAuth tokens from backend redirect.')
-      return
-    }
+      if (!accessToken || !refreshToken) {
+        setError('Missing OAuth tokens from backend redirect.')
+        return
+      }
 
-    storeTokens({ access_token: accessToken, refresh_token: refreshToken })
-      .then(() => navigate('/', { replace: true }))
-      .catch((err) => setError(getErrorMessage(err)))
+      storeTokens({ access_token: accessToken, refresh_token: refreshToken })
+        .then(() => navigate('/', { replace: true }))
+        .catch((err) => setError(getErrorMessage(err)))
+    })
   }, [navigate, searchParams, storeTokens])
 
   return (
