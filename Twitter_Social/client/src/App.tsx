@@ -8,6 +8,7 @@ import { OAuthRedirectPage } from './pages/OAuthRedirectPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { RegisterPage } from './pages/RegisterPage'
+import { SearchPage } from './pages/SearchPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { GuestRoute, ProtectedRoute } from './routes/Guards'
 
@@ -29,15 +30,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route index element={<HomePage />} />
-              <Route
-                path="search"
-                element={
-                  <PlaceholderPage
-                    title="Search"
-                    description="Search tweets will use the backend /search endpoint with content, media_type, people_follow, limit, and page."
-                  />
-                }
-              />
+              <Route path="search" element={<SearchPage />} />
               <Route
                 path="chat"
                 element={
