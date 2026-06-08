@@ -1,18 +1,18 @@
 export interface User {
   _id: string
   name: string
-  email: string
+  email?: string
   username: string
-  avatar: string
-  cover_photo: string
-  bio: string
-  location: string
-  website: string
-  date_of_birth: string
-  verify: number
-  twitter_circle: string[]
-  created_at: string
-  updated_at: string
+  avatar?: string
+  cover_photo?: string
+  bio?: string
+  location?: string
+  website?: string
+  date_of_birth?: string
+  verify?: number
+  twitter_circle?: string[]
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Tweet {
@@ -28,11 +28,12 @@ export interface Tweet {
   medias: Media[]
   guest_views: number
   user_views: number
-  bookmarks: number
-  likes: number
-  retweet_count: number
-  comment_count: number
-  quote_count: number
+  views?: number
+  bookmarks?: number
+  likes?: number
+  retweet_count?: number
+  comment_count?: number
+  quote_count?: number
   created_at: string
   updated_at: string
 }
@@ -58,6 +59,41 @@ export interface AuthResponse {
 export interface ApiResponse<T = any> {
   message: string
   result?: T
+}
+
+export interface PaginatedTweets {
+  tweets: Tweet[]
+  limit: number
+  page: number
+  total_page: number
+}
+
+export interface PaginatedConversations {
+  conversations: Conversation[]
+  limit: number
+  page: number
+  total_page: number
+}
+
+export interface UpdateProfilePayload {
+  name?: string
+  date_of_birth?: string
+  bio?: string
+  location?: string
+  website?: string
+  username?: string
+  avatar?: string
+  cover_photo?: string
+}
+
+export interface CreateTweetPayload {
+  type: TweetTypeValue
+  audience: TweetAudienceValue
+  content: string
+  parent_id: string | null
+  hashtags: string[]
+  mentions: string[]
+  medias: Media[]
 }
 
 export const TweetType = {
