@@ -12,6 +12,8 @@ export interface User {
   verify?: number
   twitter_circle?: string[]
   is_following?: boolean
+  followers_count?: number
+  following_count?: number
   created_at?: string
   updated_at?: string
 }

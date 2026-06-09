@@ -119,6 +119,18 @@ export const getMeController = async (req: Request, res: Response) => {
   return res.json({ message: USERS_MESSAGES.GET_ME_SUCCESS, result: user })
 }
 
+export const getFollowingController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const following = await usersService.getFollowing(user_id)
+  return res.json({ message: 'Get following success', result: following })
+}
+
+export const getContactsController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const contacts = await usersService.getContacts(user_id)
+  return res.json({ message: 'Get contacts success', result: contacts })
+}
+
 export const updateMeController = async (req: Request<ParamsDictionary, any, UpdateMeReqBody>, res: Response) => {
   const { user_id } = req.decoded_authorization as TokenPayload
   const { body } = req
@@ -128,7 +140,8 @@ export const updateMeController = async (req: Request<ParamsDictionary, any, Upd
 
 export const getProfileController = async (req: Request<GetProfileReqParams>, res: Response) => {
   const { username } = req.params
-  const user = await usersService.getProfile(username)
+  const viewer_id = req.decoded_authorization?.user_id
+  const user = await usersService.getProfile(username, viewer_id)
   if (!user) {
     throw new ErrorWithStatus({ message: USERS_MESSAGES.USER_NOT_FOUND, status: HTTP_STATUS.NOT_FOUND })
   }

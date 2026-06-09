@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useNotification } from '../../contexts/NotificationContext'
 import { Avatar } from '../ui/Avatar'
 import { BrandMark } from '../ui/BrandMark'
 
@@ -19,6 +20,7 @@ function Icon({ path }: { path: string }) {
 
 export function AppLayout() {
   const { user, isVerified, logout } = useAuth()
+  const { unreadCount } = useNotification()
   const navigate = useNavigate()
 
   const profilePath = user?.username ? `/${user.username}` : '/profile'
@@ -46,7 +48,14 @@ export function AppLayout() {
                 }`
               }
             >
-              <Icon path={item.icon} />
+              <div className="relative">
+                <Icon path={item.icon} />
+                {item.to === '/chat' && unreadCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-twitter-blue text-[10px] font-bold text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
               <span className="hidden xl:inline">{item.label}</span>
             </NavLink>
           ))}
@@ -88,7 +97,7 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <main className="min-h-screen border-r border-twitter-border pb-20 md:pb-0">
+      <main className="relative border-r border-twitter-border">
         {!isVerified ? (
           <div className="border-b border-amber-300/20 bg-amber-300/10 px-5 py-3 text-sm text-amber-100">
             Your account is not verified yet.{' '}
@@ -126,7 +135,14 @@ export function AppLayout() {
             }
             aria-label={item.label}
           >
-            <Icon path={item.icon} />
+            <div className="relative">
+              <Icon path={item.icon} />
+              {item.to === '/chat' && unreadCount > 0 && (
+                <span className="absolute -right-1.5 -top-1 flex size-4 items-center justify-center rounded-full bg-twitter-blue text-[10px] font-bold text-white">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
           </NavLink>
         ))}
         <NavLink

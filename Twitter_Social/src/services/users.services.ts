@@ -217,21 +217,70 @@ class UsersService {
     return user
   }
 
-  async getProfile(username: string) {
-    const user = await databaseService.users.findOne(
-      { username },
+  async getProfile(username: string, viewer_id?: string) {
+    const pipeline: object[] = [
+      { $match: { username } },
       {
-        projection: {
+        $lookup: {
+          from: 'followers',
+          let: { target_id: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$followed_user_id', '$$target_id'] },
+                    viewer_id ? { $eq: ['$user_id', new ObjectId(viewer_id)] } : { $eq: [1, 0] }
+                  ]
+                }
+              }
+            },
+            { $limit: 1 }
+          ],
+          as: 'viewer_follow'
+        }
+      },
+      // Đếm số followers
+      {
+        $lookup: {
+          from: 'followers',
+          let: { target_id: '$_id' },
+          pipeline: [{ $match: { $expr: { $eq: ['$followed_user_id', '$$target_id'] } } }],
+          as: 'followers_list'
+        }
+      },
+      // Đếm số following
+      {
+        $lookup: {
+          from: 'followers',
+          let: { target_id: '$_id' },
+          pipeline: [{ $match: { $expr: { $eq: ['$user_id', '$$target_id'] } } }],
+          as: 'following_list'
+        }
+      },
+      {
+        $addFields: {
+          is_following: { $gt: [{ $size: '$viewer_follow' }, 0] },
+          followers_count: { $size: '$followers_list' },
+          following_count: { $size: '$following_list' }
+        }
+      },
+      {
+        $project: {
           password: 0,
           email_verify_token: 0,
           forgot_password_token: 0,
           verify: 0,
-          created_at: 0,
-          updated_at: 0
+          updated_at: 0,
+          viewer_follow: 0,
+          followers_list: 0,
+          following_list: 0
         }
       }
-    )
-    return user
+    ]
+
+    const [user] = await databaseService.users.aggregate(pipeline).toArray()
+    return user || null
   }
 
   async searchUsers({
@@ -332,6 +381,110 @@ class UsersService {
       followed_user_id: new ObjectId(followed_user_id)
     })
     return { message: USERS_MESSAGES.UNFOLLOW_SUCCESS }
+  }
+
+  // -------------------- Following list --------------------
+  async getFollowing(user_id: string) {
+    const following = await databaseService.followers
+      .aggregate([
+        { $match: { user_id: new ObjectId(user_id) } },
+        { $sort: { created_at: -1 } },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'followed_user_id',
+            foreignField: '_id',
+            as: 'user'
+          }
+        },
+        { $unwind: '$user' },
+        {
+          $project: {
+            _id: '$user._id',
+            name: '$user.name',
+            username: '$user.username',
+            avatar: '$user.avatar'
+          }
+        }
+      ])
+      .toArray()
+    return following
+  }
+
+  // -------------------- Contacts (following + followers + chat history, deduped) --------------------
+  async getContacts(user_id: string) {
+    const uid = new ObjectId(user_id)
+    const lookupUser = (localField: string) => ([
+      {
+        $lookup: {
+          from: 'users',
+          localField,
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: '$user' },
+      {
+        $project: {
+          _id: '$user._id',
+          name: '$user.name',
+          username: '$user.username',
+          avatar: '$user.avatar'
+        }
+      }
+    ])
+
+    // Lấy danh sách user IDs từ hội thoại
+    const chatUserIds = await databaseService.conversations
+      .aggregate([
+        {
+          $match: {
+            $or: [{ sender_id: uid }, { receiver_id: uid }]
+          }
+        },
+        {
+          $project: {
+            userId: {
+              $cond: {
+                if: { $eq: ['$sender_id', uid] },
+                then: '$receiver_id',
+                else: '$sender_id'
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: '$userId'
+          }
+        }
+      ])
+      .toArray()
+
+    const chatIds = chatUserIds.map((item) => item._id)
+
+    const [following, followers, chatUsers] = await Promise.all([
+      databaseService.followers
+        .aggregate([{ $match: { user_id: uid } }, ...lookupUser('followed_user_id')])
+        .toArray(),
+      databaseService.followers
+        .aggregate([{ $match: { followed_user_id: uid } }, ...lookupUser('user_id')])
+        .toArray(),
+      databaseService.users
+        .find(
+          { _id: { $in: chatIds } },
+          { projection: { _id: 1, name: 1, username: 1, avatar: 1 } }
+        )
+        .toArray()
+    ])
+
+    // Deduplicate bằng Map theo _id.toString()
+    const map = new Map<string, object>()
+    for (const u of [...following, ...followers, ...chatUsers]) {
+      const key = (u as any)._id.toString()
+      if (!map.has(key)) map.set(key, u)
+    }
+    return Array.from(map.values())
   }
 
   // -------------------- Change Password --------------------

@@ -3,6 +3,8 @@ import {
   changePasswordController,
   followController,
   forgotPasswordController,
+  getContactsController,
+  getFollowingController,
   getMeController,
   getProfileController,
   loginController,
@@ -25,6 +27,7 @@ import {
   filterMiddleware,
   followValidator,
   forgotPasswordValidator,
+  isUserLoggedInValidator,
   loginValidator,
   refreshTokenValidator,
   registerValidator,
@@ -249,7 +252,13 @@ usersRouter.get(
  *     tags: [Users]
  *     summary: Get user profile by username
  */
-usersRouter.get('/:username', wrapRequestHandler(getProfileController))
+/** GET /users/following – danh sách đang follow */
+usersRouter.get('/following', accessTokenValidator, wrapRequestHandler(getFollowingController))
+
+/** GET /users/contacts – following + followers (deduped, dùng cho chat) */
+usersRouter.get('/contacts', accessTokenValidator, wrapRequestHandler(getContactsController))
+
+usersRouter.get('/:username', isUserLoggedInValidator(accessTokenValidator), wrapRequestHandler(getProfileController))
 
 /**
  * @swagger

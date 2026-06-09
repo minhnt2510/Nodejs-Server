@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { authApi } from '../apis/auth'
 import { mediasApi } from '../apis/medias'
 import { socialApi } from '../apis/social'
@@ -14,7 +14,7 @@ import type { Tweet, UpdateProfilePayload, User } from '../types'
 import { TweetAudience, TweetType } from '../types'
 
 const PAGE_SIZE = 10
-const MAX_PROFILE_IMAGE_SIZE = 300 * 1024
+const MAX_PROFILE_IMAGE_SIZE = 300 * 1024 // 300 KB
 
 function formatJoinDate(value?: string) {
   if (!value) return 'Recently joined'
@@ -51,12 +51,17 @@ function updateTweetCount(tweet: Tweet, key: 'likes' | 'bookmarks' | 'retweet_co
 
 export function ProfilePage() {
   const { username = '' } = useParams()
+  const navigate = useNavigate()
   const { user, isVerified, refreshUser } = useAuth()
   const [profile, setProfile] = useState<User | null>(null)
   const [profileTweets, setProfileTweets] = useState<Tweet[]>([])
   const [form, setForm] = useState<UpdateProfilePayload>({})
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [coverFile, setCoverFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
+  const avatarPreviewRef = useRef<string | null>(null)
+  const coverPreviewRef = useRef<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [isFollowing, setIsFollowing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -67,8 +72,19 @@ export function ProfilePage() {
   const [error, setError] = useState('')
   const [tweetError, setTweetError] = useState('')
   const [status, setStatus] = useState('')
+  // State riêng cho follow action để tránh xung đột với error profile
+  const [followStatus, setFollowStatus] = useState('')
+  const [followError, setFollowError] = useState('')
 
   const isOwnProfile = user?._id === profile?._id
+
+  // Cleanup object URLs khi component unmount hoặc preview thay đổi
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current)
+      if (coverPreviewRef.current) URL.revokeObjectURL(coverPreviewRef.current)
+    }
+  }, [])
 
   const replaceTweet = (tweetId: string, updater: (tweet: Tweet) => Tweet) => {
     setProfileTweets((current) => current.map((tweet) => (tweet._id === tweetId ? updater(tweet) : tweet)))
@@ -128,23 +144,42 @@ export function ProfilePage() {
 
   const onFollow = async () => {
     if (!profile) return
-    setError('')
-    setStatus('')
+    setFollowError('')
+    setFollowStatus('')
     setIsSubmitting(true)
 
     try {
       const message = isFollowing ? await authApi.unfollow(profile._id) : await authApi.follow(profile._id)
-      setIsFollowing((current) => !current)
-      setStatus(message)
+      setIsFollowing((current) => {
+        const next = !current
+        setProfile((prev) => {
+          if (!prev) return prev
+          const delta = next ? 1 : -1
+          return {
+            ...prev,
+            followers_count: Math.max(0, (prev.followers_count ?? 0) + delta)
+          }
+        })
+        return next
+      })
+      setFollowStatus(message)
+      // Tự ẩn thông báo sau 3 giây
+      setTimeout(() => setFollowStatus(''), 3000)
     } catch (err) {
-      setError(getErrorMessage(err))
+      setFollowError(getErrorMessage(err))
+      setTimeout(() => setFollowError(''), 4000)
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const selectProfileImage =
-    (setter: (file: File | null) => void) => (event: ChangeEvent<HTMLInputElement>) => {
+    (
+      setter: (file: File | null) => void,
+      previewSetter: (url: string | null) => void,
+      previewRef: React.MutableRefObject<string | null>
+    ) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] || null
       setError('')
       if (!file) {
@@ -161,6 +196,11 @@ export function ProfilePage() {
         setError('Profile images must be 300 KB or smaller.')
         return
       }
+      // Revoke cũ trước khi tạo mới
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current)
+      const url = URL.createObjectURL(file)
+      previewRef.current = url
+      previewSetter(url)
       setter(file)
     }
 
@@ -194,6 +234,11 @@ export function ProfilePage() {
       setForm(nextForm)
       setAvatarFile(null)
       setCoverFile(null)
+      // Cleanup previews
+      if (avatarPreviewRef.current) { URL.revokeObjectURL(avatarPreviewRef.current); avatarPreviewRef.current = null }
+      if (coverPreviewRef.current) { URL.revokeObjectURL(coverPreviewRef.current); coverPreviewRef.current = null }
+      setAvatarPreview(null)
+      setCoverPreview(null)
       setIsEditing(false)
       setStatus('Profile updated successfully.')
       await refreshUser()
@@ -313,13 +358,31 @@ export function ProfilePage() {
       ) : profile ? (
         <>
           <div
-            className="h-48 bg-gradient-to-br from-twitter-blue via-sky-500 to-violet-600 bg-cover bg-center"
-            style={coverStyle}
-          />
+            className="relative h-48 overflow-hidden bg-gradient-to-br from-twitter-blue via-sky-500 to-violet-600 bg-cover bg-center"
+            style={coverPreview ? { backgroundImage: `url(${coverPreview})` } : coverStyle}
+          >
+            {coverPreview && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <span className="rounded-full bg-black/50 px-3 py-1 text-xs font-semibold text-white">Preview</span>
+              </div>
+            )}
+          </div>
 
           <div className="px-5 pb-5">
             <div className="-mt-14 flex items-end justify-between">
-              <Avatar src={profile.avatar} name={profile.name} size="xl" className="border-4 border-twitter-bg" />
+              <div className="relative">
+                <Avatar
+                  src={avatarPreview || profile.avatar}
+                  name={profile.name}
+                  size="xl"
+                  className="border-4 border-twitter-bg"
+                />
+                {avatarPreview && (
+                  <span className="absolute bottom-0 right-0 rounded-full bg-twitter-blue px-2 py-0.5 text-[10px] font-bold text-white shadow">
+                    Preview
+                  </span>
+                )}
+              </div>
               {isOwnProfile ? (
                 isVerified ? (
                   <button
@@ -338,18 +401,45 @@ export function ProfilePage() {
                   </Link>
                 )
               ) : (
-                <button
-                  type="button"
-                  onClick={onFollow}
-                  disabled={!isVerified || isSubmitting}
-                  className={`rounded-full px-5 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                    isFollowing
-                      ? 'border border-twitter-border text-twitter-text hover:bg-white/5'
-                      : 'bg-twitter-text text-twitter-bg hover:bg-white'
-                  }`}
-                >
-                  {isFollowing ? 'Following' : 'Follow'}
-                </button>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex gap-2">
+                    {user && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/chat?receiver_id=${profile._id}`, { state: { receiverInfo: profile } })}
+                        className="flex items-center gap-1.5 rounded-full border border-twitter-border px-4 py-2 text-sm font-black text-twitter-text transition hover:bg-white/5"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        Message
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={onFollow}
+                      disabled={!isVerified || isSubmitting}
+                      className={`rounded-full px-5 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        isFollowing
+                          ? 'border border-twitter-border text-twitter-text hover:bg-white/5'
+                          : 'bg-twitter-text text-twitter-bg hover:bg-white'
+                      }`}
+                    >
+                      {isSubmitting ? '...' : isFollowing ? 'Following' : 'Follow'}
+                    </button>
+                  </div>
+                  {/* Thông báo follow ngay dưới nút */}
+                  {followStatus && (
+                    <span className="animate-fade-in rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400">
+                      ✓ {followStatus}
+                    </span>
+                  )}
+                  {followError && (
+                    <span className="animate-fade-in rounded-full bg-red-500/15 px-3 py-1 text-xs font-semibold text-red-400">
+                      {followError}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
@@ -365,6 +455,16 @@ export function ProfilePage() {
                   </a>
                 ) : null}
                 <span>{formatJoinDate(profile.created_at)}</span>
+              </div>
+              <div className="mt-3 flex gap-5 text-sm">
+                <span>
+                  <strong className="font-extrabold text-twitter-text">{profile.following_count ?? 0}</strong>{' '}
+                  <span className="text-twitter-muted">Following</span>
+                </span>
+                <span>
+                  <strong className="font-extrabold text-twitter-text">{profile.followers_count ?? 0}</strong>{' '}
+                  <span className="text-twitter-muted">Followers</span>
+                </span>
               </div>
             </div>
 
@@ -406,24 +506,38 @@ export function ProfilePage() {
                 ))}
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block rounded-2xl border border-dashed border-twitter-border p-4">
+                  <label className="block cursor-pointer rounded-2xl border border-dashed border-twitter-border p-4 transition hover:border-twitter-blue/50">
                     <span className="mb-2 block text-sm font-semibold text-twitter-muted">Avatar image</span>
+                    {avatarPreview ? (
+                      <img
+                        src={avatarPreview}
+                        alt="Avatar preview"
+                        className="mb-3 h-20 w-20 rounded-full object-cover ring-2 ring-twitter-blue"
+                      />
+                    ) : null}
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={selectProfileImage(setAvatarFile)}
+                      onChange={selectProfileImage(setAvatarFile, setAvatarPreview, avatarPreviewRef)}
                       className="block w-full text-sm text-twitter-muted file:mr-3 file:rounded-full file:border-0 file:bg-twitter-blue file:px-4 file:py-2 file:font-bold file:text-white"
                     />
                     <span className="mt-2 block truncate text-xs text-twitter-soft">
                       {avatarFile?.name || 'Maximum 300 KB'}
                     </span>
                   </label>
-                  <label className="block rounded-2xl border border-dashed border-twitter-border p-4">
+                  <label className="block cursor-pointer rounded-2xl border border-dashed border-twitter-border p-4 transition hover:border-twitter-blue/50">
                     <span className="mb-2 block text-sm font-semibold text-twitter-muted">Cover image</span>
+                    {coverPreview ? (
+                      <img
+                        src={coverPreview}
+                        alt="Cover preview"
+                        className="mb-3 h-20 w-full rounded-xl object-cover ring-2 ring-twitter-blue"
+                      />
+                    ) : null}
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={selectProfileImage(setCoverFile)}
+                      onChange={selectProfileImage(setCoverFile, setCoverPreview, coverPreviewRef)}
                       className="block w-full text-sm text-twitter-muted file:mr-3 file:rounded-full file:border-0 file:bg-twitter-blue file:px-4 file:py-2 file:font-bold file:text-white"
                     />
                     <span className="mt-2 block truncate text-xs text-twitter-soft">

@@ -101,5 +101,15 @@ export const authApi = {
   async unfollow(userId: string) {
     const { data } = await http.delete<ApiResponse>(`/users/follow/${userId}`)
     return data.message
+  },
+
+  async getFollowing() {
+    const { data } = await http.get<ApiResponse<User[]>>('/users/following')
+    return readResult(data)
+  },
+
+  async getContacts() {
+    const { data } = await http.get<ApiResponse<User[]>>('/users/contacts')
+    return readResult(data)
   }
 }
