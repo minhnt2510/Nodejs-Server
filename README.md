@@ -62,8 +62,6 @@
 `-- README.md
 ```
 
-`Nodejs-Ts/` và `ServerNodejs/` là các thư mục bài tập/phiên bản cũ trong repository. Ứng dụng Twitter hiện tại sử dụng `Twitter_Social/` và `client/`.
-
 ## Yêu cầu
 
 - Node.js 20 trở lên.

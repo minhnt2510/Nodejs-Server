@@ -1,2 +1,10 @@
 **/node_modules/
-dist/
+**/dist/
+
+.env
+.env.*
+!.env.example
+
+*.log
+logs/
+uploads/
