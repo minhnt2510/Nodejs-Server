@@ -51,6 +51,7 @@ export function TweetCard({
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(tweet.content)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [openMenu, setOpenMenu] = useState(false)
   const author = tweet.user
   const authorName = author?.name || 'Twitter Social User'
   const username = author?.username || String(tweet.user_id).slice(-8)
@@ -92,40 +93,75 @@ export function TweetCard({
         <Avatar src={author?.avatar} name={authorName} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1 text-sm">
-            <Link
-              to={`/${username}`}
-              onClick={stopClick}
-              className="font-black text-twitter-text hover:underline"
-            >
+            <Link to={`/${username}`} onClick={stopClick} className="font-black text-twitter-text hover:underline">
               {authorName}
             </Link>
             <span className="text-twitter-muted">@{username}</span>
             <span className="text-twitter-soft">.</span>
             <span className="text-twitter-muted">{formatRelativeTime(tweet.created_at)}</span>
             {isOwner ? (
-              <div className="ml-auto flex items-center gap-2">
-                {tweet.type !== TweetType.Retweet && onUpdate ? (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      stopClick(event)
-                      setEditContent(tweet.content)
-                      setIsEditing((current) => !current)
-                    }}
-                    className="rounded-full px-3 py-1 text-xs font-bold text-twitter-blue transition hover:bg-twitter-blue/10"
+              <div className="relative ml-auto">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    stopClick(event)
+                    setOpenMenu((current) => !current)
+                  }}
+                  disabled={isSubmitting}
+                  aria-label="Post actions"
+                  aria-expanded={openMenu}
+                  className="rounded-full p-2 text-twitter-muted transition hover:bg-twitter-blue/10 hover:text-twitter-blue disabled:opacity-50"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth="1.5"
+                    stroke="currentColor"
+                    className="h-5 w-5"
                   >
-                    Edit
-                  </button>
-                ) : null}
-                {onDelete ? (
-                  <button
-                    type="button"
-                    onClick={deleteTweet}
-                    disabled={isSubmitting}
-                    className="rounded-full px-3 py-1 text-xs font-bold text-rose-300 transition hover:bg-rose-400/10 disabled:opacity-50"
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z"
+                    />
+                  </svg>
+                </button>
+
+                {openMenu ? (
+                  <div
+                    onClick={stopClick}
+                    className="absolute right-0 top-8 z-50 w-40 overflow-hidden rounded-xl border border-twitter-border bg-twitter-panel shadow-xl"
                   >
-                    {tweet.type === TweetType.Retweet ? 'Remove repost' : 'Delete'}
-                  </button>
+                    {tweet.type !== TweetType.Retweet && onUpdate ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          stopClick(event)
+                          setOpenMenu(false)
+                          setEditContent(tweet.content)
+                          setIsEditing((current) => !current)
+                        }}
+                        className="block w-full px-4 py-3 text-left text-sm font-bold text-twitter-blue transition hover:bg-twitter-blue/10"
+                      >
+                        Edit
+                      </button>
+                    ) : null}
+
+                    {onDelete ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          deleteTweet(event)
+                          setOpenMenu(false)
+                        }}
+                        disabled={isSubmitting}
+                        className="block w-full px-4 py-3 text-left text-sm font-bold text-rose-400 transition hover:bg-rose-400/10 disabled:opacity-50"
+                      >
+                        {tweet.type === TweetType.Retweet ? 'Remove repost' : 'Delete'}
+                      </button>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             ) : null}
@@ -169,7 +205,9 @@ export function TweetCard({
           )}
 
           {tweet.medias?.length ? (
-            <div className={`mt-3 grid gap-1 overflow-hidden rounded-3xl ${tweet.medias.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            <div
+              className={`mt-3 grid gap-1 overflow-hidden rounded-3xl ${tweet.medias.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}
+            >
               {tweet.medias.map((media) =>
                 media.type === MediaType.Image ? (
                   <img
