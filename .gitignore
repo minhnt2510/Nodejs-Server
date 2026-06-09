@@ -1,2 +1,17 @@
 **/node_modules/
-dist/
+**/dist/
+
+# Local environment files
+**/.env
+**/.env.*
+!**/.env.example
+
+# Runtime output
+*.log
+**/logs/
+**/uploads/
+
+# Local tooling
+.DS_Store
+.idea/
+.vscode/

@@ -23,7 +23,6 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
-COPY .env .env
 
 # Upload folders
 RUN mkdir -p uploads/images/temp uploads/videos/temp uploads/videos public logs
