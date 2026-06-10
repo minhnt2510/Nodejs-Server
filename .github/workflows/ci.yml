@@ -1,172 +1,66 @@
-# ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║                        CI PIPELINE – Twitter Social                        ║
-# ║  File này nằm ở: .github/workflows/ci.yml                                 ║
-# ║  GitHub tự động đọc mọi file .yml trong thư mục này để chạy CI/CD         ║
-# ╚══════════════════════════════════════════════════════════════════════════════╝
-
-# ┌─────────────────────────────────────────────────────────────────────────────┐
-# │ PHẦN 1: name – Đặt tên cho workflow                                       │
-# │                                                                             │
-# │ Tên này sẽ hiển thị trên tab "Actions" của GitHub.                         │
-# │ Bạn có thể đặt bất kỳ tên gì, nên đặt rõ ràng để dễ nhận biết.           │
-# └─────────────────────────────────────────────────────────────────────────────┘
 name: ✅ CI Pipeline
 
-# ┌─────────────────────────────────────────────────────────────────────────────┐
-# │ PHẦN 2: on – Khi nào workflow này được kích hoạt?                          │
-# │                                                                             │
-# │ Đây là phần QUAN TRỌNG NHẤT – nó quyết định workflow chạy khi nào.        │
-# │                                                                             │
-# │ Các trigger phổ biến:                                                       │
-# │   push        → Khi ai đó push code lên                                   │
-# │   pull_request → Khi ai đó tạo/cập nhật Pull Request                      │
-# │   schedule    → Chạy theo lịch (cron)                                      │
-# │   workflow_dispatch → Chạy bằng tay trên GitHub                           │
-# └─────────────────────────────────────────────────────────────────────────────┘
 on:
-  # Khi push code lên nhánh main
   push:
     branches: [main]
-
-  # Khi tạo Pull Request vào nhánh main
-  # → Rất hữu ích: review PR sẽ thấy CI pass/fail ngay trên GitHub
   pull_request:
     branches: [main]
-
-  # Cho phép chạy workflow bằng tay từ tab Actions
-  # → Hữu ích khi muốn test lại mà không cần push code
   workflow_dispatch:
+  workflow_call:
 
-# ┌─────────────────────────────────────────────────────────────────────────────┐
-# │ PHẦN 3: jobs – Danh sách các công việc cần thực hiện                       │
-# │                                                                             │
-# │ Mỗi job chạy trên 1 máy ảo riêng (runner).                                │
-# │ Các job KHÔNG CÓ "needs" sẽ chạy SONG SONG (parallel).                    │
-# │                                                                             │
-# │ Ở đây ta có 2 job:                                                         │
-# │   1. backend-ci  → Kiểm tra code Backend                                  │
-# │   2. frontend-ci → Kiểm tra code Frontend                                 │
-# │ Cả 2 chạy cùng lúc → tiết kiệm thời gian!                                │
-# └─────────────────────────────────────────────────────────────────────────────┘
 jobs:
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # JOB 1: BACKEND CI
-  # Kiểm tra code trong thư mục Twitter_Social/
-  # ═══════════════════════════════════════════════════════════════════════════
   backend-ci:
-    # Tên hiển thị trên GitHub (có thể khác với key "backend-ci")
     name: 🔧 Backend – Lint & Build
-
-    # Runner: máy ảo để chạy job
-    # ubuntu-latest = máy Ubuntu mới nhất (miễn phí)
-    # Các lựa chọn khác: windows-latest, macos-latest
     runs-on: ubuntu-latest
 
-    # ┌───────────────────────────────────────────────────────────────────────┐
-    # │ steps: Danh sách các bước thực hiện TUẦN TỰ trong job này            │
-    # │ Mỗi step là 1 hành động cụ thể, chạy lần lượt từ trên xuống.        │
-    # │                                                                       │
-    # │ Có 2 loại step:                                                       │
-    # │   uses: → Dùng Action có sẵn (giống npm package cho CI)              │
-    # │   run:  → Chạy lệnh terminal trực tiếp                              │
-    # └───────────────────────────────────────────────────────────────────────┘
     steps:
-
-      # ── Bước 1: Checkout code ──────────────────────────────────────────
-      # actions/checkout@v4 = Action chính thức của GitHub
-      # Tải toàn bộ source code từ repo vào máy ảo
-      # KHÔNG CÓ bước này → máy ảo trống, không có code!
-      - name: 📥 Checkout source code
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      # ── Bước 2: Cài đặt Node.js ───────────────────────────────────────
-      # actions/setup-node@v4 = Cài Node.js lên máy ảo
-      # node-version: 20 → dùng Node 20 (nên khớp với Dockerfile)
-      # cache: 'npm' → Cache thư mục node_modules giữa các lần chạy
-      #   → Lần chạy sau nhanh hơn vì không cần tải lại dependencies
-      - name: 📦 Setup Node.js 20
+      - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
           cache-dependency-path: Twitter_Social/package-lock.json
 
-      # ── Bước 3: Cài dependencies ──────────────────────────────────────
-      # working-directory: chỉ định thư mục chạy lệnh
-      #   → Giống như cd Twitter_Social && npm ci
-      #
-      # 🔑 npm ci vs npm install – SỰ KHÁC BIỆT QUAN TRỌNG:
-      # ┌──────────────┬──────────────────────────────────────────────────┐
-      # │ npm install   │ Có thể update version, tạo/sửa lock file      │
-      # │ npm ci        │ Cài ĐÚNG version trong lock file, NHANH hơn    │
-      # │               │ Nếu lock file không khớp package.json → FAIL   │
-      # └──────────────┴──────────────────────────────────────────────────┘
-      # → Luôn dùng npm ci trong CI để đảm bảo mọi người cài cùng version
-      - name: 📦 Install backend dependencies
+      - name: 📦 Install dependencies
         working-directory: Twitter_Social
         run: npm ci
 
-      # ── Bước 4: Kiểm tra code style (Lint) ────────────────────────────
-      # Chạy ESLint để kiểm tra:
-      #   - Code có đúng convention không?
-      #   - Có lỗi tiềm ẩn nào không?
-      #   - Có import thừa, biến không dùng không?
-      #
-      # ⚠️ continue-on-error: true
-      # Hiện tại project có ~200 lint errors (chủ yếu prettier formatting
-      # và @typescript-eslint/no-explicit-any).
-      # Để CI không bị block hoàn toàn, mình cho lint chạy nhưng KHÔNG
-      # chặn pipeline. Khi fix hết lint errors → bỏ dòng này đi.
-      #
-      # 💡 Bạn có thể fix tự động phần lớn bằng: npm run lint:fix
-      - name: 🔍 Lint check
+      - name: 🔍 Lint
         working-directory: Twitter_Social
         run: npm run lint
-        continue-on-error: true    # ← Tạm thời: cho phép fail, không chặn pipeline
+        continue-on-error: true
 
-      # ── Bước 5: Build TypeScript ──────────────────────────────────────
-      # Compile TypeScript → JavaScript
-      # Nếu có lỗi type (VD: truyền string cho param number) → FAIL
-      # Đây là bước quan trọng nhất vì nó phát hiện lỗi logic
-      - name: 🏗️ Build TypeScript
+      - name: 🏗️ Build
         working-directory: Twitter_Social
         run: npm run build
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # JOB 2: FRONTEND CI
-  # Kiểm tra code trong thư mục client/
-  # Job này chạy SONG SONG với backend-ci (không có "needs")
-  # ═══════════════════════════════════════════════════════════════════════════
   frontend-ci:
     name: 🎨 Frontend – Lint & Build
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout source code
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: 📦 Setup Node.js 20
+      - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
           cache-dependency-path: client/package-lock.json
 
-      - name: 📦 Install frontend dependencies
+      - name: 📦 Install dependencies
         working-directory: client
         run: npm ci
 
-      # ⚠️ Tương tự backend: lint tạm thời non-blocking
-      # Frontend có 6 lint errors (react-hooks rules)
-      - name: 🔍 Lint check
+      - name: 🔍 Lint
         working-directory: client
         run: npm run lint
-        continue-on-error: true    # ← Tạm thời: cho phép fail
+        continue-on-error: true
 
-      # Build React app (Vite)
-      # Kiểm tra xem app có build thành công không
-      # Lỗi TypeScript, import sai, component lỗi → sẽ fail ở đây
-      - name: 🏗️ Build React app
+      - name: 🏗️ Build
         working-directory: client
         run: npm run build
