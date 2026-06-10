@@ -135,7 +135,7 @@ class MediasService {
           }
         } catch {
           return {
-            url: `${envConfig.host}:${envConfig.port}/static/image/${newFullFilename}`,
+            url: `${envConfig.host.includes('localhost') ? `${envConfig.host}:${envConfig.port}` : envConfig.host}/static/image/${newFullFilename}`,
             type: MediaType.Image
           }
         }
@@ -161,7 +161,7 @@ class MediasService {
           }
         } catch {
           return {
-            url: `${envConfig.host}:${envConfig.port}/static/video-stream/${file.newFilename}`,
+            url: `${envConfig.host.includes('localhost') ? `${envConfig.host}:${envConfig.port}` : envConfig.host}/static/video-stream/${file.newFilename}`,
             type: MediaType.Video
           }
         }
@@ -177,7 +177,7 @@ class MediasService {
         const newName = getNameFromFullname(file.newFilename as string)
         queue.enqueue(file.filepath)
         return {
-          url: `${envConfig.host}:${envConfig.port}/static/video-hls/${newName}/master.m3u8`,
+          url: `${envConfig.host.includes('localhost') ? `${envConfig.host}:${envConfig.port}` : envConfig.host}/static/video-hls/${newName}/master.m3u8`,
           type: MediaType.HLS
         }
       })
