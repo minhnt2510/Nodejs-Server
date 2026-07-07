@@ -5,7 +5,7 @@ import { tweetsApi } from '../../apis/tweets'
 import { useAuth } from '../../contexts/AuthContext'
 import { getErrorMessage } from '../../lib/http'
 import type { Tweet, TweetTypeValue } from '../../types'
-import { MediaType, TweetAudience, TweetType } from '../../types'
+import { TweetAudience, TweetType } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { Alert } from '../ui/Alert'
 

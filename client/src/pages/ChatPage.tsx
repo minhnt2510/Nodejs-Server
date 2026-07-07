@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom'
 import { io } from 'socket.io-client'
 import type { Socket } from 'socket.io-client'
