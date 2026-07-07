@@ -49,8 +49,12 @@ export function ChatPage() {
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [status, setStatus] = useState('')
   const [showMenu, setShowMenu] = useState(false)
   const [contextMsgId, setContextMsgId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [reactMsgId, setReactMsgId] = useState<string | null>(null)
+  const [showSearch, setShowSearch] = useState(false)
   const [mediaFiles, setMediaFiles] = useState<{ file: File; previewUrl: string; type: 'image' | 'video' }[]>([])
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
@@ -317,6 +321,21 @@ export function ChatPage() {
     }
   }
 
+  const onDeleteConversation = async () => {
+    if (!activeReceiverId) return
+    if (!window.confirm('Xóa toàn bộ cuộc trò chuyện này?')) return
+    setShowMenu(false)
+    setShowSearch(false)
+    try {
+      await conversationsApi.deleteConversation(activeReceiverId)
+      setMessages([])
+      setStatus('Cuộc trò chuyện đã được xóa.')
+      setTimeout(() => setStatus(''), 3000)
+    } catch (err: any) {
+      setError(getErrorMessage(err))
+    }
+  }
+
   const onReact = (messageId: string, emoji: string) => {
     if (!socketRef.current?.connected || !activeReceiverId) return
 
@@ -469,14 +488,62 @@ export function ChatPage() {
                   </svg>
                 </button>
                 {showMenu && (
-                  <div className="absolute right-0 mt-2 w-48 rounded-xl border border-twitter-border bg-twitter-bg shadow-xl z-50 py-1">
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-twitter-border bg-twitter-bg shadow-2xl z-50 py-1">
+                    <button
+                      type="button"
+                      onClick={() => { setShowMenu(false); navigate(`/${receiverInfo.username}`) }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-twitter-text transition hover:bg-white/5"
+                    >
+                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      View profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false)
+                        const url = `${window.location.origin}/${receiverInfo.username}`
+                        navigator.clipboard.writeText(url).catch(() => {})
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-twitter-text transition hover:bg-white/5"
+                    >
+                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      Share contact
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowMenu(false); setShowSearch(!showSearch); setSearchQuery('') }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-twitter-text transition hover:bg-white/5"
+                    >
+                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      Search messages
+                    </button>
+                    <hr className="border-twitter-border mx-2 my-1" />
+                    <button
+                      type="button"
+                      onClick={onDeleteConversation}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-500 transition hover:bg-white/5"
+                    >
+                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Delete conversation
+                    </button>
                     <button
                       type="button"
                       onClick={handleBlockToggle}
-                      className={`flex w-full items-center px-4 py-2.5 text-sm transition hover:bg-white/5 text-left ${
+                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-white/5 ${
                         receiverInfo.is_blocked ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'
                       }`}
                     >
+                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
                       {receiverInfo.is_blocked ? 'Unblock User' : 'Block User'}
                     </button>
                   </div>
@@ -491,6 +558,25 @@ export function ChatPage() {
         {error ? (
           <div className="p-4">
             <Alert type="error">{error}</Alert>
+          </div>
+        ) : null}
+
+        {/* Search bar */}
+        {showSearch && activeReceiverId && (
+          <div className="border-b border-twitter-border px-4 py-3">
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search messages..."
+              className="w-full rounded-full border border-twitter-border bg-twitter-surface px-4 py-2 text-sm text-twitter-text outline-none transition focus:border-twitter-blue focus:ring-4 focus:ring-twitter-blue/10"
+              autoFocus
+            />
+          </div>
+        )}
+
+        {status ? (
+          <div className="px-4 pt-2">
+            <Alert type="success">{status}</Alert>
           </div>
         ) : null}
 
@@ -521,7 +607,10 @@ export function ChatPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {messages.map((message) => {
+              {(searchQuery
+                ? messages.filter((m) => !m.is_deleted && m.content.toLowerCase().includes(searchQuery.toLowerCase()))
+                : messages
+              ).map((message) => {
                 const isMine = message.sender_id === user?._id
                 return (
                   <div key={message._id} className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
@@ -609,25 +698,37 @@ export function ChatPage() {
                         </div>
                       )}
 
-                      {/* Hover: emoji reactions bar */}
+                      {/* Reaction button (always visible) + emoji picker */}
                       {!message.is_deleted && (
-                        <div className={`absolute -top-10 ${isMine ? 'right-2' : 'left-2'} hidden group-hover:flex items-center gap-1.5 rounded-full bg-twitter-surface border border-twitter-border px-2.5 py-1.5 shadow-xl z-30 animate-fade-in`}>
-                          {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              onClick={() => onReact(message._id, emoji)}
-                              className="text-sm transition hover:scale-125 duration-100 cursor-pointer"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
+                        <div className={`relative mt-1 ${isMine ? 'text-right' : 'text-left'}`}>
+                          <button
+                            type="button"
+                            onClick={() => setReactMsgId(reactMsgId === message._id ? null : message._id)}
+                            className="inline-flex size-6 items-center justify-center rounded-full bg-twitter-surface border border-twitter-border text-xs text-twitter-muted hover:text-twitter-text hover:scale-110 transition"
+                            title="Reaction"
+                          >
+                            🙂
+                          </button>
+                          {reactMsgId === message._id && (
+                            <div className={`absolute ${isMine ? 'right-0' : 'left-0'} bottom-8 flex items-center gap-1.5 rounded-full bg-twitter-surface border border-twitter-border px-2.5 py-1.5 shadow-xl z-30 animate-fade-in`}>
+                              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  onClick={() => { onReact(message._id, emoji); setReactMsgId(null) }}
+                                  className="text-sm transition hover:scale-125 duration-100 cursor-pointer"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 
                       {/* 3-dot context button + dropdown */}
                       {!message.is_deleted && (
-                        <div className={`absolute ${isMine ? '-left-8' : '-right-8'} top-0 hidden group-hover:block z-30`}>
+                        <div className={`absolute ${isMine ? 'left-0 -translate-x-full pl-1' : 'right-0 translate-x-full pr-1'} top-0 opacity-30 hover:opacity-100 transition-opacity z-30`}>
                           <button
                             type="button"
                             onClick={() => setContextMsgId(contextMsgId === message._id ? null : message._id)}
@@ -668,9 +769,9 @@ export function ChatPage() {
                         </div>
                       )}
 
-                      {/* Click outside to close context menu */}
-                      {contextMsgId && (
-                        <div className="fixed inset-0 z-20" onClick={() => setContextMsgId(null)} />
+                      {/* Click outside to close all menus */}
+                      {(contextMsgId || reactMsgId) && (
+                        <div className="fixed inset-0 z-20" onClick={() => { setContextMsgId(null); setReactMsgId(null) }} />
                       )}
 
                       {/* Timestamp */}

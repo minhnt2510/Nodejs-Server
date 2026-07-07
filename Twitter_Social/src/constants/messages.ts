@@ -138,5 +138,6 @@ export const SEARCH_MESSAGES = {
 } as const
 
 export const CONVERSATIONS_MESSAGES = {
-  GET_CONVERSATIONS_SUCCESS: 'Get conversations success'
+  GET_CONVERSATIONS_SUCCESS: 'Get conversations success',
+  DELETE_CONVERSATION_SUCCESS: 'Delete conversation success'
 } as const

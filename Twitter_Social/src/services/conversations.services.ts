@@ -31,6 +31,24 @@ class ConversationsService {
     ])
     return { conversations, total }
   }
+
+  async deleteConversation({ sender_id, receiver_id }: { sender_id: string; receiver_id: string }) {
+    const result = await databaseService.conversations.updateMany(
+      {
+        sender_id: new ObjectId(sender_id),
+        receiver_id: new ObjectId(receiver_id)
+      },
+      {
+        $set: {
+          is_deleted: true,
+          content: 'Tin nhắn đã bị thu hồi',
+          medias: [],
+          updated_at: new Date()
+        }
+      }
+    )
+    return result
+  }
 }
 
 const conversationsService = new ConversationsService()

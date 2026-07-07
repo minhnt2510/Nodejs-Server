@@ -14,5 +14,10 @@ export const conversationsApi = {
       params: { page, limit }
     })
     return readResult(data)
+  },
+
+  async deleteConversation(receiverId: string) {
+    const { data } = await http.delete<ApiResponse>(`/conversations/receivers/${receiverId}`)
+    return data.message
   }
 }

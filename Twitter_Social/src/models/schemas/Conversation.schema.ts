@@ -12,6 +12,7 @@ interface ConversationType {
   receiver_id: ObjectId
   content: string
   medias?: Media[]
+  deleted_for?: string[]
   is_deleted?: boolean
   reactions?: MessageReaction[]
   created_at?: Date
@@ -24,18 +25,20 @@ export class Conversation {
   receiver_id: ObjectId
   content: string
   medias: Media[]
+  deleted_for: string[]
   is_deleted: boolean
   reactions: MessageReaction[]
   created_at: Date
   updated_at: Date
 
-  constructor({ _id, sender_id, receiver_id, content, medias, is_deleted, reactions, created_at, updated_at }: ConversationType) {
+  constructor({ _id, sender_id, receiver_id, content, medias, deleted_for, is_deleted, reactions, created_at, updated_at }: ConversationType) {
     const date = new Date()
     this._id = _id || new ObjectId()
     this.sender_id = sender_id
     this.receiver_id = receiver_id
     this.content = content
     this.medias = medias || []
+    this.deleted_for = deleted_for || []
     this.is_deleted = is_deleted || false
     this.reactions = reactions || []
     this.created_at = created_at || date
