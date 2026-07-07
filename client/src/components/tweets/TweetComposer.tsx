@@ -4,6 +4,7 @@ import { mediasApi } from '../../apis/medias'
 import { tweetsApi } from '../../apis/tweets'
 import { useAuth } from '../../contexts/AuthContext'
 import { getErrorMessage } from '../../lib/http'
+import { resizeImages } from '../../utils/image'
 import type { Media, Tweet, TweetTypeValue } from '../../types'
 import { TweetAudience, TweetType } from '../../types'
 import { Avatar } from '../ui/Avatar'
@@ -46,31 +47,32 @@ export function TweetComposer({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const videoInputRef = useRef<HTMLInputElement | null>(null)
 
-  const onSelectImages = (event: ChangeEvent<HTMLInputElement>) => {
+  const onSelectImages = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
     setError('')
+    event.target.value = ''
 
     if (images.length + files.length > MAX_MEDIA_ITEMS) {
       setError(`You can upload up to ${MAX_MEDIA_ITEMS} media items.`)
-      event.target.value = ''
       return
     }
 
     const invalidFile = files.find((file) => file.size > MAX_IMAGE_SIZE)
     if (invalidFile) {
       setError(`${invalidFile.name} quá lớn. Tối đa 5 MB mỗi ảnh.`)
-      event.target.value = ''
       return
     }
 
+    // Resize ảnh trước khi preview
+    const resized = await resizeImages(files)
+
     setImages((current) => [
       ...current,
-      ...files.map((file) => ({
+      ...resized.map((file) => ({
         file,
         previewUrl: URL.createObjectURL(file)
       }))
     ])
-    event.target.value = ''
   }
 
   const onSelectVideo = (event: ChangeEvent<HTMLInputElement>) => {

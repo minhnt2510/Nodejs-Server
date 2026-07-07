@@ -32,6 +32,7 @@ class DatabaseService {
       await this.indexRefreshTokens()
       await this.indexVideoStatus()
       await this.indexFollowers()
+      await this.indexConversations()
       await this.indexTweets()
       await this.indexBlockedUsers()
     } catch (error) {
@@ -92,6 +93,7 @@ class DatabaseService {
       await this.users.createIndex({ email: 1 }, { unique: true, sparse: true })
       await this.users.createIndex({ username: 1 }, { unique: true, sparse: true })
       await this.users.createIndex({ email: 1, password: 1 })
+      await this.users.createIndex({ forgot_password_token: 1 }, { sparse: true })
     } catch {
       // Indexes may already exist
     }
@@ -122,6 +124,15 @@ class DatabaseService {
     }
   }
 
+  private async indexConversations() {
+    try {
+      await this.conversations.createIndex({ sender_id: 1, receiver_id: 1 })
+      await this.conversations.createIndex({ receiver_id: 1, sender_id: 1 })
+    } catch {
+      // Indexes may already exist
+    }
+  }
+
   private async indexTweets() {
     try {
       /**
@@ -136,6 +147,7 @@ class DatabaseService {
        * Đây cũng là điều kiện cần để hỗ trợ tiếng Việt.
        */
       await this.tweets.createIndex({ content: 'text' }, { default_language: 'none' })
+      await this.tweets.createIndex({ user_id: 1, created_at: -1 })
     } catch {
       // Indexes may already exist
     }

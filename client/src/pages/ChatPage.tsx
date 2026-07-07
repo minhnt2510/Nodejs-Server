@@ -14,6 +14,7 @@ import { mediasApi } from '../apis/medias'
 import type { Conversation, Media, ReplyTo, User } from '../types'
 import { MediaType } from '../types'
 import { formatRelativeTime } from '../utils/format'
+import { resizeImages } from '../utils/image'
 
 const PAGE_SIZE = 20
 
@@ -219,14 +220,16 @@ export function ChatPage() {
     navigate('/chat')
   }
 
-  const onSelectImages = (e: ChangeEvent<HTMLInputElement>) => {
+  const onSelectImages = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
     if (!files.length) return
+    e.target.value = ''
+
+    const resized = await resizeImages(files)
     setMediaFiles((prev) => [
       ...prev,
-      ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file), type: 'image' as const }))
+      ...resized.map((file) => ({ file, previewUrl: URL.createObjectURL(file), type: 'image' as const }))
     ])
-    e.target.value = ''
   }
 
   const onSelectVideo = (e: ChangeEvent<HTMLInputElement>) => {

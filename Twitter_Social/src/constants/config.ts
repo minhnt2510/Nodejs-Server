@@ -39,5 +39,9 @@ export const envConfig = {
   useS3: process.env.USE_S3 !== 'false',
 
   passwordSecret: process.env.PASSWORD_SECRET || 'twitter-secret',
-  geminiApiKey: process.env.GEMINI_API_KEY as string
+  geminiApiKey: process.env.GEMINI_API_KEY as string,
+
+  // Upstash Redis (cache)
+  upstashRedisRestUrl: process.env.UPSTASH_REDIS_REST_URL as string,
+  upstashRedisRestToken: process.env.UPSTASH_REDIS_REST_TOKEN as string
 }
