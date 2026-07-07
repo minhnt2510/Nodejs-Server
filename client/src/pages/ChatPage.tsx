@@ -10,7 +10,9 @@ import { Avatar } from '../components/ui/Avatar'
 import { useAuth } from '../contexts/AuthContext'
 import { API_BASE_URL, getErrorMessage } from '../lib/http'
 import { authStorage } from '../lib/storage'
-import type { Conversation, User } from '../types'
+import { mediasApi } from '../apis/medias'
+import type { Conversation, Media, User } from '../types'
+import { MediaType } from '../types'
 import { formatRelativeTime } from '../utils/format'
 
 const PAGE_SIZE = 20
@@ -48,6 +50,10 @@ export function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [showMenu, setShowMenu] = useState(false)
+  const [mediaFiles, setMediaFiles] = useState<{ file: File; previewUrl: string; type: 'image' | 'video' }[]>([])
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const videoInputRef = useRef<HTMLInputElement | null>(null)
 
   // Ref to always have the latest activeReceiverId in socket events
   const activeReceiverIdRef = useRef(activeReceiverId)
@@ -207,9 +213,34 @@ export function ChatPage() {
     navigate('/chat')
   }
 
-  const onSend = (event: FormEvent<HTMLFormElement>) => {
+  const onSelectImages = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+    setMediaFiles((prev) => [
+      ...prev,
+      ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file), type: 'image' as const }))
+    ])
+    e.target.value = ''
+  }
+
+  const onSelectVideo = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setMediaFiles((prev) => [...prev, { file, previewUrl: URL.createObjectURL(file), type: 'video' as const }])
+    e.target.value = ''
+  }
+
+  const removeMedia = (previewUrl: string) => {
+    setMediaFiles((prev) => {
+      const target = prev.find((m) => m.previewUrl === previewUrl)
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return prev.filter((m) => m.previewUrl !== previewUrl)
+    })
+  }
+
+  const onSend = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!user || !activeReceiverId || !content.trim()) return
+    if (!user || !activeReceiverId || (!content.trim() && mediaFiles.length === 0)) return
 
     const socket = socketRef.current
     if (!socket?.connected) {
@@ -217,22 +248,51 @@ export function ChatPage() {
       return
     }
 
+    // Upload media trước khi send
+    let medias: Media[] = []
+    if (mediaFiles.length > 0) {
+      setIsUploadingMedia(true)
+      try {
+        const imageFiles = mediaFiles.filter((m) => m.type === 'image').map((m) => m.file)
+        const videoFile = mediaFiles.find((m) => m.type === 'video')?.file
+        if (imageFiles.length) {
+          const uploaded = await mediasApi.uploadImages(imageFiles)
+          medias.push(...uploaded)
+        }
+        if (videoFile) {
+          const uploaded = await mediasApi.uploadVideo(videoFile)
+          medias.push(...uploaded)
+        }
+      } catch (err: any) {
+        setError(getErrorMessage(err))
+        setIsUploadingMedia(false)
+        return
+      }
+      setIsUploadingMedia(false)
+    }
+
+    // Optimistic update với medias
     const message: Conversation = {
       _id: `local-${Date.now()}`,
       sender_id: user._id,
       receiver_id: activeReceiverId,
       content: content.trim(),
+      medias,
       created_at: new Date().toISOString()
     }
     setMessages((current) => [...current, message])
+
     socket.emit('send_message', {
-      payload: { sender_id: user._id, receiver_id: activeReceiverId, content: content.trim() }
+      payload: { sender_id: user._id, receiver_id: activeReceiverId, content: content.trim(), medias }
     })
     setContent('')
+    // Cleanup previews
+    mediaFiles.forEach((m) => URL.revokeObjectURL(m.previewUrl))
+    setMediaFiles([])
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && activeReceiverId && content.trim() && isVerified) {
+    if (e.key === 'Enter' && !e.shiftKey && activeReceiverId && (content.trim() || mediaFiles.length > 0) && isVerified) {
       e.preventDefault()
       onSend(e as unknown as FormEvent<HTMLFormElement>)
     }
@@ -474,6 +534,31 @@ export function ChatPage() {
                         }`}
                       >
                         {message.content}
+                        {message.medias && message.medias.length > 0 && (
+                          <div className={`mt-2 grid gap-1 ${message.medias.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            {message.medias.map((media) =>
+                              media.type === MediaType.Image ? (
+                                <img
+                                  key={media.url}
+                                  src={media.url}
+                                  alt=""
+                                  loading="lazy"
+                                  className="w-full rounded-xl bg-black/10 object-cover"
+                                  style={{ maxHeight: '200px' }}
+                                />
+                              ) : (
+                                <video
+                                  key={media.url}
+                                  src={media.url}
+                                  controls
+                                  preload="metadata"
+                                  className="w-full rounded-xl bg-black object-cover"
+                                  style={{ maxHeight: '200px' }}
+                                />
+                              )
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Emojis Reactions list */}
@@ -550,8 +635,72 @@ export function ChatPage() {
             )}
           </div>
         ) : (
-          <form onSubmit={onSend} className="border-t border-twitter-border bg-twitter-bg p-4 z-10">
-            <div className="flex gap-3">
+          <form onSubmit={onSend} className="border-t border-twitter-border bg-twitter-bg z-10">
+            {/* Media preview */}
+            {mediaFiles.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto border-b border-twitter-border px-4 py-3">
+                {mediaFiles.map((media) => (
+                  <div key={media.previewUrl} className="group relative shrink-0">
+                    {media.type === 'image' ? (
+                      <img src={media.previewUrl} alt="" className="h-20 w-20 rounded-xl object-cover" />
+                    ) : (
+                      <video src={media.previewUrl} className="h-20 w-20 rounded-xl bg-black object-cover" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeMedia(media.previewUrl)}
+                      className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-black/60 text-xs text-white hover:bg-black/80"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2 p-4">
+              {/* Image picker */}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={onSelectImages}
+                disabled={!activeReceiverId || !isVerified}
+              />
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={!activeReceiverId || !isVerified}
+                className="flex shrink-0 items-center gap-1 rounded-full p-2 text-twitter-muted transition hover:bg-twitter-blue/10 hover:text-twitter-blue disabled:opacity-50"
+                title="Gửi ảnh"
+              >
+                <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+
+              {/* Video picker */}
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/mp4,video/quicktime,video/x-msvideo,video/x-matroska"
+                className="hidden"
+                onChange={onSelectVideo}
+                disabled={!activeReceiverId || !isVerified}
+              />
+              <button
+                type="button"
+                onClick={() => videoInputRef.current?.click()}
+                disabled={!activeReceiverId || !isVerified}
+                className="flex shrink-0 items-center gap-1 rounded-full p-2 text-twitter-muted transition hover:bg-twitter-blue/10 hover:text-twitter-blue disabled:opacity-50"
+                title="Gửi video"
+              >
+                <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+
               <input
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -562,10 +711,10 @@ export function ChatPage() {
               />
               <button
                 type="submit"
-                disabled={!activeReceiverId || !content.trim() || !isVerified}
+                disabled={!activeReceiverId || (!content.trim() && mediaFiles.length === 0) || !isVerified || isUploadingMedia}
                 className="rounded-full bg-twitter-blue px-5 py-3 font-black text-white shadow-lg shadow-twitter-blue/20 transition hover:bg-twitter-blue-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Send
+                {isUploadingMedia ? 'Uploading...' : 'Send'}
               </button>
             </div>
           </form>

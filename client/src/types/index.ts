@@ -61,6 +61,7 @@ export interface Conversation {
   sender_id: string
   receiver_id: string
   content: string
+  medias?: Media[]
   is_deleted?: boolean
   reactions?: MessageReaction[]
   created_at: string
