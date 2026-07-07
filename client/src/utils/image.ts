@@ -6,7 +6,7 @@ export async function resizeImage(file: File): Promise<File> {
   // Nếu file nhỏ hơn 1MB và là ảnh nhỏ, không cần resize
   if (file.size < 1024 * 1024) return file
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
 
