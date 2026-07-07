@@ -3,7 +3,7 @@ dotenv.config()
 
 export const envConfig = {
   port: process.env.PORT || 3000,
-  host: process.env.HOST || 'http://localhost',
+  host: process.env.HOST || process.env.RENDER_EXTERNAL_URL || 'http://localhost',
   dbUsername: process.env.DB_USERNAME as string,
   dbPassword: process.env.DB_PASSWORD as string,
   dbName: process.env.DB_NAME || 'twitter',
