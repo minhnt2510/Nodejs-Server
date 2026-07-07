@@ -91,9 +91,16 @@ export function ForgotPasswordPage() {
           <div className="space-y-3">
             <Alert type="success">{status}</Alert>
             {!token && (
-              <div className="rounded-2xl border border-twitter-border bg-twitter-bg/50 p-4 text-xs text-twitter-muted">
-                <span className="font-bold text-yellow-600 dark:text-yellow-500 block mb-1">💡 Hướng dẫn cho Tester:</span>
-                Nếu bạn không nhận được email (do tài khoản AWS SES Sandbox hạn chế gửi thư), bạn vẫn có thể lấy link đặt lại mật khẩu bằng cách kiểm tra <strong>màn hình Logs trên Render Backend</strong>.
+              <div className="rounded-2xl border border-twitter-border bg-twitter-bg/50 p-4 text-xs text-twitter-muted space-y-3">
+                <div>
+                  <span className="font-bold text-twitter-text block mb-1">🔑 Hướng dẫn lấy lại mật khẩu:</span>
+                  Hãy kiểm tra xem địa chỉ email của bạn đã chính xác chưa. Nếu chính xác, vui lòng click vào liên kết được gửi trong email để đặt lại mật khẩu mới.
+                </div>
+                <hr className="border-twitter-border" />
+                <div>
+                  <span className="font-bold text-yellow-600 dark:text-yellow-500 block mb-1">💡 Hướng dẫn cho Tester:</span>
+                  Nếu bạn đang thử nghiệm và không nhận được email (do tài khoản AWS SES Sandbox hạn chế gửi thư), bạn vẫn có thể lấy link đặt lại mật khẩu bằng cách kiểm tra <strong>màn hình Logs trên Render Backend</strong>.
+                </div>
               </div>
             )}
           </div>
