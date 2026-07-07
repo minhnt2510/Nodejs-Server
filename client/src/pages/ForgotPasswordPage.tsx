@@ -78,7 +78,7 @@ export function ForgotPasswordPage() {
       description={
         token
           ? 'Choose a new strong password for your Twitter Social account.'
-          : 'Enter your email and the backend will send a reset link.'
+          : 'Nhập email của bạn để nhận liên kết đặt lại mật khẩu. (Lưu ý: Trong giai đoạn thử nghiệm Sandbox, chỉ các email đã được xác minh trên AWS SES mới có thể nhận được thư).'
       }
       footer={
         <Link to="/login" className="font-bold text-twitter-blue hover:underline">

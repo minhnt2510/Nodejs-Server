@@ -60,18 +60,19 @@ export const sendEmail = async ({ to, subject, html }: { to: string; subject: st
   })
 }
 
-/**
- * Gửi email không chặn response (fire-and-forget).
- * Lỗi SMTP chỉ log ra console, không throw lên caller.
- */
 export const sendEmailAsync = (args: { to: string; subject: string; html: string }) => {
   sendEmail(args).catch((err) => {
-    console.error('[Email] Failed to send to', args.to, '-', err?.message ?? err)
+    console.error(`[Email] Failed to send to ${args.to}. Error: ${err?.message ?? err}`)
+    console.error(`💡 HƯỚNG DẪN XỬ LÝ LỖI KHÔNG NHẬN ĐƯỢC MAIL:`)
+    console.error(`  1. Nếu lỗi 'Connection timeout' / 'ENETUNREACH': Do Render Free chặn cổng SMTP. Bạn đã cấu hình AWS SES chưa?`)
+    console.error(`  2. Nếu lỗi 'Email address is not verified': Do tài khoản AWS SES đang ở chế độ Sandbox. Bạn bắt buộc phải vào AWS Console và Verify thêm địa chỉ email nhận thư '${args.to}'.`)
+    console.error(`  3. Hoặc bạn có thể copy link kích hoạt/reset trực tiếp bên dưới trong log này để dùng ngay mà không cần đợi email!`)
   })
 }
 
 export const sendVerifyEmail = (toAddress: string, email_verify_token: string, template?: string) => {
   const verifyLink = `${envConfig.clientUrl}/verify-email?token=${email_verify_token}`
+  console.log(`[TESTING] Link xác thực email cho ${toAddress}: ${verifyLink}`)
   sendEmailAsync({
     to: toAddress,
     subject: 'Xác thực email Twitter Clone',
@@ -93,6 +94,7 @@ export const sendVerifyEmail = (toAddress: string, email_verify_token: string, t
 
 export const sendForgotPasswordEmail = (toAddress: string, forgot_password_token: string, template?: string) => {
   const resetLink = `${envConfig.clientUrl}/forgot-password?token=${forgot_password_token}`
+  console.log(`[TESTING] Link đặt lại mật khẩu cho ${toAddress}: ${resetLink}`)
   sendEmailAsync({
     to: toAddress,
     subject: 'Đặt lại mật khẩu Twitter Clone',
