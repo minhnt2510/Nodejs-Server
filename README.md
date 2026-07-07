@@ -77,6 +77,12 @@ Dự án mô phỏng các nghiệp vụ chính của mạng xã hội (tương t
 - Danh sách contacts (following + followers)
 - Block check hai chiều khi gửi tin nhắn
 
+### 🚀 Redis Cache (Upstash)
+- **Profile cache:** `GET /users/me` được cache 5 phút — giảm tải MongoDB
+- **Auto-invalidate:** Cache tự động xóa khi user update profile, đổi mật khẩu
+- **Zero-downtime:** Nếu Redis không available, app fallback về query DB bình thường
+- **Upstash Redis:** Dùng REST API, không cần maintain server, free 256MB
+
 ### 🔍 Search
 - Tìm kiếm tweets với text index (hỗ trợ tiếng Việt)
 - Lọc theo media type (image / video)
