@@ -53,7 +53,6 @@ export function ChatPage() {
   const [showMenu, setShowMenu] = useState(false)
   const [contextMsgId, setContextMsgId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [reactMsgId, setReactMsgId] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(false)
   const [mediaFiles, setMediaFiles] = useState<{ file: File; previewUrl: string; type: 'image' | 'video' }[]>([])
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
@@ -698,37 +697,25 @@ export function ChatPage() {
                         </div>
                       )}
 
-                      {/* Reaction button (always visible) + emoji picker */}
+                      {/* Hover: emoji reactions bar (pt-4 giup khong bi mat hover khi di chuyen chuot) */}
                       {!message.is_deleted && (
-                        <div className={`relative mt-1 ${isMine ? 'text-right' : 'text-left'}`}>
-                          <button
-                            type="button"
-                            onClick={() => setReactMsgId(reactMsgId === message._id ? null : message._id)}
-                            className="inline-flex size-6 items-center justify-center rounded-full bg-twitter-surface border border-twitter-border text-xs text-twitter-muted hover:text-twitter-text hover:scale-110 transition"
-                            title="Reaction"
-                          >
-                            🙂
-                          </button>
-                          {reactMsgId === message._id && (
-                            <div className={`absolute ${isMine ? 'right-0' : 'left-0'} bottom-8 flex items-center gap-1.5 rounded-full bg-twitter-surface border border-twitter-border px-2.5 py-1.5 shadow-xl z-30 animate-fade-in`}>
-                              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
-                                <button
-                                  key={emoji}
-                                  type="button"
-                                  onClick={() => { onReact(message._id, emoji); setReactMsgId(null) }}
-                                  className="text-sm transition hover:scale-125 duration-100 cursor-pointer"
-                                >
-                                  {emoji}
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                        <div className={`absolute -top-9 ${isMine ? 'right-1' : 'left-1'} hidden group-hover:flex items-center gap-1.5 rounded-full bg-twitter-surface border border-twitter-border px-2.5 py-1.5 shadow-xl z-30 animate-fade-in pt-4 pb-1 -mt-3`}>
+                          {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => onReact(message._id, emoji)}
+                              className="text-sm transition hover:scale-125 duration-100 cursor-pointer"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
                         </div>
                       )}
 
-                      {/* 3-dot context button + dropdown */}
+                      {/* 3-dot context button + dropdown (hover, de bam hon) */}
                       {!message.is_deleted && (
-                        <div className={`absolute ${isMine ? 'left-0 -translate-x-full pl-1' : 'right-0 translate-x-full pr-1'} top-0 opacity-30 hover:opacity-100 transition-opacity z-30`}>
+                        <div className={`absolute ${isMine ? '-left-7' : '-right-7'} top-0 hidden group-hover:block z-30`}>
                           <button
                             type="button"
                             onClick={() => setContextMsgId(contextMsgId === message._id ? null : message._id)}
@@ -769,9 +756,9 @@ export function ChatPage() {
                         </div>
                       )}
 
-                      {/* Click outside to close all menus */}
-                      {(contextMsgId || reactMsgId) && (
-                        <div className="fixed inset-0 z-20" onClick={() => { setContextMsgId(null); setReactMsgId(null) }} />
+                      {/* Click outside to close context menu */}
+                      {contextMsgId && (
+                        <div className="fixed inset-0 z-20" onClick={() => setContextMsgId(null)} />
                       )}
 
                       {/* Timestamp */}
