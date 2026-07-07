@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AuthShell } from '../components/layout/AuthShell'
 import { Alert } from '../components/ui/Alert'
@@ -12,9 +12,11 @@ export function VerifyEmailPage() {
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const hasCalledRef = useRef(false)
 
   useEffect(() => {
-    if (!token) return
+    if (!token || hasCalledRef.current) return
+    hasCalledRef.current = true
 
     queueMicrotask(() => {
       setIsSubmitting(true)

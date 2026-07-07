@@ -5,6 +5,8 @@ import {
   forgotPasswordController,
   getContactsController,
   getFollowingController,
+  getFollowingOfUserController,
+  getFollowersOfUserController,
   getMeController,
   getProfileController,
   loginController,
@@ -18,7 +20,10 @@ import {
   unfollowController,
   updateMeController,
   verifyEmailController,
-  verifyForgotPasswordController
+  verifyForgotPasswordController,
+  blockController,
+  unblockController,
+  getBlockedUsersController
 } from '~/controllers/users.controllers'
 import {
   accessTokenValidator,
@@ -36,7 +41,9 @@ import {
   unfollowValidator,
   updateMeValidator,
   verifiedUserValidator,
-  verifyForgotPasswordTokenValidator
+  verifyForgotPasswordTokenValidator,
+  blockValidator,
+  unblockValidator
 } from '~/middlewares/users.middlewares'
 import { paginationValidator } from '~/middlewares/tweets.middlewares'
 import { UpdateMeReqBody } from '~/models/requests/User.requests'
@@ -258,6 +265,22 @@ usersRouter.get('/following', accessTokenValidator, wrapRequestHandler(getFollow
 /** GET /users/contacts – following + followers (deduped, dùng cho chat) */
 usersRouter.get('/contacts', accessTokenValidator, wrapRequestHandler(getContactsController))
 
+/** GET /users/:user_id/following – danh sách user đó đang follow */
+usersRouter.get(
+  '/:user_id/following',
+  accessTokenValidator,
+  verifiedUserValidator,
+  wrapRequestHandler(getFollowingOfUserController)
+)
+
+/** GET /users/:user_id/followers – danh sách user follow user đó */
+usersRouter.get(
+  '/:user_id/followers',
+  accessTokenValidator,
+  verifiedUserValidator,
+  wrapRequestHandler(getFollowersOfUserController)
+)
+
 usersRouter.get('/:username', isUserLoggedInValidator(accessTokenValidator), wrapRequestHandler(getProfileController))
 
 /**
@@ -310,5 +333,56 @@ usersRouter.put(
   changePasswordValidator,
   wrapRequestHandler(changePasswordController)
 )
+
+/**
+ * @swagger
+ * /users/block:
+ *   post:
+ *     tags: [Users]
+ *     summary: Block a user
+ *     security:
+ *       - BearerAuth: []
+ */
+usersRouter.post(
+  '/block',
+  accessTokenValidator,
+  verifiedUserValidator,
+  blockValidator,
+  wrapRequestHandler(blockController)
+)
+
+/**
+ * @swagger
+ * /users/block/{user_id}:
+ *   delete:
+ *     tags: [Users]
+ *     summary: Unblock a user
+ *     security:
+ *       - BearerAuth: []
+ */
+usersRouter.delete(
+  '/block/:user_id',
+  accessTokenValidator,
+  verifiedUserValidator,
+  unblockValidator,
+  wrapRequestHandler(unblockController)
+)
+
+/**
+ * @swagger
+ * /users/blocked:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get blocked users
+ *     security:
+ *       - BearerAuth: []
+ */
+usersRouter.get(
+  '/blocked',
+  accessTokenValidator,
+  verifiedUserValidator,
+  wrapRequestHandler(getBlockedUsersController)
+)
+
 
 export default usersRouter

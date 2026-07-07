@@ -83,3 +83,12 @@ export interface ChangePasswordReqBody {
   password: string
   confirm_password: string
 }
+
+export interface BlockReqBody {
+  blocked_user_id: string
+}
+
+export interface UnblockReqParams extends ParamsDictionary {
+  user_id: string
+}
+

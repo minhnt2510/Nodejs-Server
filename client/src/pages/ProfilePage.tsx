@@ -8,13 +8,14 @@ import { tweetsApi } from '../apis/tweets'
 import { TweetCard } from '../components/tweets/TweetCard'
 import { Alert } from '../components/ui/Alert'
 import { Avatar } from '../components/ui/Avatar'
+import { AvatarModal } from '../components/ui/AvatarModal'
 import { useAuth } from '../contexts/AuthContext'
 import { getErrorMessage } from '../lib/http'
 import type { Tweet, UpdateProfilePayload, User } from '../types'
-import { TweetAudience, TweetType } from '../types'
+import { TweetAudience, TweetType, MediaType } from '../types'
 
 const PAGE_SIZE = 10
-const MAX_PROFILE_IMAGE_SIZE = 300 * 1024 // 300 KB
+const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024 // 5 MB
 
 function formatJoinDate(value?: string) {
   if (!value) return 'Recently joined'
@@ -72,9 +73,38 @@ export function ProfilePage() {
   const [error, setError] = useState('')
   const [tweetError, setTweetError] = useState('')
   const [status, setStatus] = useState('')
+  const [avatarError, setAvatarError] = useState('')
+  const [coverError, setCoverError] = useState('')
   // State riêng cho follow action để tránh xung đột với error profile
   const [followStatus, setFollowStatus] = useState('')
   const [followError, setFollowError] = useState('')
+
+  // States for following/followers list modal
+  const [showFollowList, setShowFollowList] = useState<{ type: 'following' | 'followers'; isOpen: boolean }>({
+    type: 'following',
+    isOpen: false
+  })
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false)
+  const [followListUsers, setFollowListUsers] = useState<User[]>([])
+  const [isFollowListLoading, setIsFollowListLoading] = useState(false)
+  const [followListError, setFollowListError] = useState('')
+
+  const loadFollowList = async (userId: string, type: 'following' | 'followers') => {
+    setIsFollowListLoading(true)
+    setFollowListError('')
+    setFollowListUsers([])
+    try {
+      const users =
+        type === 'following'
+          ? await authApi.getFollowingOfUser(userId)
+          : await authApi.getFollowersOfUser(userId)
+      setFollowListUsers(users)
+    } catch (err) {
+      setFollowListError(getErrorMessage(err))
+    } finally {
+      setIsFollowListLoading(false)
+    }
+  }
 
   const isOwnProfile = user?._id === profile?._id
 
@@ -177,23 +207,24 @@ export function ProfilePage() {
     (
       setter: (file: File | null) => void,
       previewSetter: (url: string | null) => void,
-      previewRef: React.MutableRefObject<string | null>
+      previewRef: React.MutableRefObject<string | null>,
+      errorSetter: (msg: string) => void
     ) =>
     (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] || null
-      setError('')
+      errorSetter('')
       if (!file) {
         setter(null)
         return
       }
       if (!file.type.startsWith('image/')) {
         event.target.value = ''
-        setError('Please choose an image file.')
+        errorSetter('Vui lòng chọn file ảnh (jpg, png, webp...)')
         return
       }
       if (file.size > MAX_PROFILE_IMAGE_SIZE) {
         event.target.value = ''
-        setError('Profile images must be 300 KB or smaller.')
+        errorSetter(`Ảnh quá lớn: ${(file.size / 1024 / 1024).toFixed(1)} MB. Tối đa 5 MB.`)
         return
       }
       // Revoke cũ trước khi tạo mới
@@ -230,6 +261,24 @@ export function ProfilePage() {
       }
 
       const updated = await authApi.updateMe(payload)
+      
+      // Auto-post avatar change to enable likes & comments on it
+      if (payload.avatar) {
+        try {
+          await tweetsApi.createTweet({
+            type: TweetType.Tweet,
+            audience: TweetAudience.Everyone,
+            content: 'Updated profile picture #avatar',
+            parent_id: null,
+            hashtags: ['avatar'],
+            mentions: [],
+            medias: [{ url: payload.avatar, type: MediaType.Image }]
+          })
+        } catch (tweetErr) {
+          console.error('Failed to auto-post avatar update tweet', tweetErr)
+        }
+      }
+
       setProfile(updated)
       setForm(nextForm)
       setAvatarFile(null)
@@ -369,13 +418,18 @@ export function ProfilePage() {
           </div>
 
           <div className="px-5 pb-5">
-            <div className="-mt-14 flex items-end justify-between">
-              <div className="relative">
+            <div className="-mt-14 flex flex-wrap items-end justify-between gap-4">
+              <div
+                className={`relative ${!isEditing ? 'cursor-pointer' : ''}`}
+                onClick={() => !isEditing && setIsAvatarModalOpen(true)}
+              >
                 <Avatar
                   src={avatarPreview || profile.avatar}
                   name={profile.name}
                   size="xl"
-                  className="border-4 border-twitter-bg"
+                  className={`border-4 border-twitter-bg transition ${
+                    !isEditing ? 'hover:brightness-90 hover:scale-[1.02]' : ''
+                  }`}
                 />
                 {avatarPreview && (
                   <span className="absolute bottom-0 right-0 rounded-full bg-twitter-blue px-2 py-0.5 text-[10px] font-bold text-white shadow">
@@ -387,7 +441,34 @@ export function ProfilePage() {
                 isVerified ? (
                   <button
                     type="button"
-                    onClick={() => setIsEditing((current) => !current)}
+                    onClick={() => {
+                      if (isEditing) {
+                        setForm({
+                          name: profile.name,
+                          bio: profile.bio,
+                          location: profile.location,
+                          website: profile.website,
+                          username: profile.username,
+                          avatar: profile.avatar,
+                          cover_photo: profile.cover_photo
+                        })
+                        setAvatarFile(null)
+                        setCoverFile(null)
+                        setAvatarError('')
+                        setCoverError('')
+                        if (avatarPreviewRef.current) {
+                          URL.revokeObjectURL(avatarPreviewRef.current)
+                          avatarPreviewRef.current = null
+                        }
+                        if (coverPreviewRef.current) {
+                          URL.revokeObjectURL(coverPreviewRef.current)
+                          coverPreviewRef.current = null
+                        }
+                        setAvatarPreview(null)
+                        setCoverPreview(null)
+                      }
+                      setIsEditing((current) => !current)
+                    }}
                     className="rounded-full border border-twitter-border px-5 py-2 text-sm font-black text-twitter-text transition hover:bg-white/5"
                   >
                     {isEditing ? 'Cancel' : 'Edit profile'}
@@ -457,14 +538,32 @@ export function ProfilePage() {
                 <span>{formatJoinDate(profile.created_at)}</span>
               </div>
               <div className="mt-3 flex gap-5 text-sm">
-                <span>
-                  <strong className="font-extrabold text-twitter-text">{profile.following_count ?? 0}</strong>{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowFollowList({ type: 'following', isOpen: true })
+                    loadFollowList(profile._id, 'following')
+                  }}
+                  className="group flex gap-1 hover:underline text-left outline-none"
+                >
+                  <strong className="font-extrabold text-twitter-text group-hover:text-twitter-blue transition-colors">
+                    {profile.following_count ?? 0}
+                  </strong>{' '}
                   <span className="text-twitter-muted">Following</span>
-                </span>
-                <span>
-                  <strong className="font-extrabold text-twitter-text">{profile.followers_count ?? 0}</strong>{' '}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowFollowList({ type: 'followers', isOpen: true })
+                    loadFollowList(profile._id, 'followers')
+                  }}
+                  className="group flex gap-1 hover:underline text-left outline-none"
+                >
+                  <strong className="font-extrabold text-twitter-text group-hover:text-twitter-blue transition-colors">
+                    {profile.followers_count ?? 0}
+                  </strong>{' '}
                   <span className="text-twitter-muted">Followers</span>
-                </span>
+                </button>
               </div>
             </div>
 
@@ -506,44 +605,90 @@ export function ProfilePage() {
                 ))}
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block cursor-pointer rounded-2xl border border-dashed border-twitter-border p-4 transition hover:border-twitter-blue/50">
+                  <div className="block rounded-2xl border border-dashed border-twitter-border p-4 transition hover:border-twitter-blue/50">
                     <span className="mb-2 block text-sm font-semibold text-twitter-muted">Avatar image</span>
                     {avatarPreview ? (
-                      <img
-                        src={avatarPreview}
-                        alt="Avatar preview"
-                        className="mb-3 h-20 w-20 rounded-full object-cover ring-2 ring-twitter-blue"
-                      />
+                      <div className="mb-3 flex items-center gap-3">
+                        <img
+                          src={avatarPreview}
+                          alt="Avatar preview"
+                          className="h-20 w-20 rounded-full object-cover ring-2 ring-twitter-blue"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            if (avatarPreviewRef.current) {
+                              URL.revokeObjectURL(avatarPreviewRef.current)
+                              avatarPreviewRef.current = null
+                            }
+                            setAvatarPreview(null)
+                            setAvatarFile(null)
+                            setAvatarError('')
+                          }}
+                          className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-bold text-red-400 hover:bg-red-500/20"
+                        >
+                          Hủy chọn
+                        </button>
+                      </div>
                     ) : null}
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={selectProfileImage(setAvatarFile, setAvatarPreview, avatarPreviewRef)}
+                      key={avatarFile ? 'has-avatar' : 'no-avatar'}
+                      onChange={selectProfileImage(setAvatarFile, setAvatarPreview, avatarPreviewRef, setAvatarError)}
                       className="block w-full text-sm text-twitter-muted file:mr-3 file:rounded-full file:border-0 file:bg-twitter-blue file:px-4 file:py-2 file:font-bold file:text-white"
                     />
-                    <span className="mt-2 block truncate text-xs text-twitter-soft">
-                      {avatarFile?.name || 'Maximum 300 KB'}
-                    </span>
-                  </label>
-                  <label className="block cursor-pointer rounded-2xl border border-dashed border-twitter-border p-4 transition hover:border-twitter-blue/50">
+                    {avatarError ? (
+                      <span className="mt-1 block text-xs font-semibold text-red-400">⚠ {avatarError}</span>
+                    ) : (
+                      <span className="mt-2 block truncate text-xs text-twitter-soft">
+                        {avatarFile?.name || 'Tối đa 5 MB — jpg, png, webp'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="block rounded-2xl border border-dashed border-twitter-border p-4 transition hover:border-twitter-blue/50">
                     <span className="mb-2 block text-sm font-semibold text-twitter-muted">Cover image</span>
                     {coverPreview ? (
-                      <img
-                        src={coverPreview}
-                        alt="Cover preview"
-                        className="mb-3 h-20 w-full rounded-xl object-cover ring-2 ring-twitter-blue"
-                      />
+                      <div className="mb-3 flex items-center gap-3">
+                        <img
+                          src={coverPreview}
+                          alt="Cover preview"
+                          className="h-20 w-full rounded-xl object-cover ring-2 ring-twitter-blue"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            if (coverPreviewRef.current) {
+                              URL.revokeObjectURL(coverPreviewRef.current)
+                              coverPreviewRef.current = null
+                            }
+                            setCoverPreview(null)
+                            setCoverFile(null)
+                            setCoverError('')
+                          }}
+                          className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-bold text-red-400 hover:bg-red-500/20"
+                        >
+                          Hủy chọn
+                        </button>
+                      </div>
                     ) : null}
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={selectProfileImage(setCoverFile, setCoverPreview, coverPreviewRef)}
+                      key={coverFile ? 'has-cover' : 'no-cover'}
+                      onChange={selectProfileImage(setCoverFile, setCoverPreview, coverPreviewRef, setCoverError)}
                       className="block w-full text-sm text-twitter-muted file:mr-3 file:rounded-full file:border-0 file:bg-twitter-blue file:px-4 file:py-2 file:font-bold file:text-white"
                     />
-                    <span className="mt-2 block truncate text-xs text-twitter-soft">
-                      {coverFile?.name || 'Maximum 300 KB'}
-                    </span>
-                  </label>
+                    {coverError ? (
+                      <span className="mt-1 block text-xs font-semibold text-red-400">⚠ {coverError}</span>
+                    ) : (
+                      <span className="mt-2 block truncate text-xs text-twitter-soft">
+                        {coverFile?.name || 'Tối đa 5 MB — jpg, png, webp'}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <button
@@ -599,6 +744,70 @@ export function ProfilePage() {
           </div>
         </>
       ) : null}
+
+      {showFollowList.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-md rounded-[2rem] border border-twitter-border bg-twitter-surface p-6 shadow-2xl animate-slide-up">
+            <div className="flex items-center justify-between border-b border-twitter-border pb-4 mb-4">
+              <h3 className="text-lg font-black text-twitter-text capitalize">
+                {showFollowList.type === 'following' ? 'Following' : 'Followers'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowFollowList({ ...showFollowList, isOpen: false })}
+                className="rounded-full p-2 text-twitter-muted transition hover:bg-white/5 hover:text-twitter-text"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {isFollowListLoading ? (
+              <div className="py-8 text-center">
+                <div className="mx-auto size-8 animate-spin rounded-full border-2 border-twitter-border border-t-twitter-blue" />
+                <p className="mt-2 text-sm text-twitter-muted">Loading...</p>
+              </div>
+            ) : followListError ? (
+              <Alert type="error">{followListError}</Alert>
+            ) : followListUsers.length === 0 ? (
+              <div className="py-8 text-center text-sm text-twitter-muted">
+                No users found.
+              </div>
+            ) : (
+              <div className="max-h-80 overflow-y-auto space-y-4 pr-1">
+                {followListUsers.map((item) => (
+                  <div key={item._id} className="flex items-center justify-between gap-3">
+                    <div
+                      className="flex items-center gap-3 cursor-pointer w-full p-2 rounded-xl hover:bg-white/5 transition"
+                      onClick={() => {
+                        setShowFollowList({ ...showFollowList, isOpen: false })
+                        navigate(`/${item.username}`)
+                      }}
+                    >
+                      <Avatar src={item.avatar} name={item.name} size="md" />
+                      <div>
+                        <h4 className="font-bold text-twitter-text hover:underline">{item.name}</h4>
+                        <p className="text-xs text-twitter-muted">@{item.username}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {profile && (
+        <AvatarModal
+          isOpen={isAvatarModalOpen}
+          onClose={() => setIsAvatarModalOpen(false)}
+          user={profile}
+          currentUser={user}
+          isVerified={isVerified}
+        />
+      )}
     </section>
   )
 }

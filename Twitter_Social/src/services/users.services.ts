@@ -6,6 +6,8 @@ import { RegisterReqBody, UpdateMeReqBody } from '~/models/requests/User.request
 import RefreshToken from '~/models/schemas/RefreshToken.schema'
 import User from '~/models/schemas/User.schema'
 import { Follower } from '~/models/schemas/Follower.schema'
+import { BlockedUser } from '~/models/schemas/BlockedUser.schema'
+
 import databaseService from './database.services'
 import { hashPassword } from '~/utils/crypto'
 import { signToken, verifyToken } from '~/utils/jwt'
@@ -57,9 +59,17 @@ class UsersService {
   }
 
   private async insertRefreshToken(user_id: ObjectId, refresh_token: string, iat: number, exp: number) {
-    await databaseService.refreshTokens.insertOne(
-      new RefreshToken({ user_id, token: refresh_token, iat, exp })
-    )
+    try {
+      await databaseService.refreshTokens.insertOne(
+        new RefreshToken({ user_id, token: refresh_token, iat, exp })
+      )
+    } catch (err: any) {
+      if (err.code === 11000) {
+        // Token đã được insert trước đó bởi request song song, bỏ qua
+        return
+      }
+      throw err
+    }
   }
 
   // -------------------- Auth --------------------
@@ -411,6 +421,34 @@ class UsersService {
     return following
   }
 
+  // -------------------- Followers list --------------------
+  async getFollowers(user_id: string) {
+    const followers = await databaseService.followers
+      .aggregate([
+        { $match: { followed_user_id: new ObjectId(user_id) } },
+        { $sort: { created_at: -1 } },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'user_id',
+            foreignField: '_id',
+            as: 'user'
+          }
+        },
+        { $unwind: '$user' },
+        {
+          $project: {
+            _id: '$user._id',
+            name: '$user.name',
+            username: '$user.username',
+            avatar: '$user.avatar'
+          }
+        }
+      ])
+      .toArray()
+    return followers
+  }
+
   // -------------------- Contacts (following + followers + chat history, deduped) --------------------
   async getContacts(user_id: string) {
     const uid = new ObjectId(user_id)
@@ -478,11 +516,23 @@ class UsersService {
         .toArray()
     ])
 
-    // Deduplicate bằng Map theo _id.toString()
-    const map = new Map<string, object>()
+    // Fetch block records involving this user
+    const blocks = await databaseService.blockedUsers
+      .find({
+        $or: [{ user_id: uid }, { blocked_user_id: uid }]
+      })
+      .toArray()
+
+    // Deduplicate bằng Map theo _id.toString() và gán block status
+    const map = new Map<string, any>()
     for (const u of [...following, ...followers, ...chatUsers]) {
       const key = (u as any)._id.toString()
-      if (!map.has(key)) map.set(key, u)
+      if (!map.has(key)) {
+        const contact = { ...u } as any
+        contact.is_blocked = blocks.some((b) => b.user_id.equals(uid) && b.blocked_user_id.equals(contact._id))
+        contact.blocked_by = blocks.some((b) => b.blocked_user_id.equals(uid) && b.user_id.equals(contact._id))
+        map.set(key, contact)
+      }
     }
     return Array.from(map.values())
   }
@@ -548,6 +598,66 @@ class UsersService {
       confirm_password: password
     })
     return { ...result, newUser: 1, verify: UserVerifyStatus.Unverified }
+  }
+
+  // -------------------- Block User --------------------
+  async blockUser(user_id: string, blocked_user_id: string) {
+    const uid = new ObjectId(user_id)
+    const buid = new ObjectId(blocked_user_id)
+
+    // Insert block record
+    await databaseService.blockedUsers.insertOne(
+      new BlockedUser({ user_id: uid, blocked_user_id: buid })
+    )
+
+    // Automatically remove follow relationships (both directions)
+    await databaseService.followers.deleteMany({
+      $or: [
+        { user_id: uid, followed_user_id: buid },
+        { user_id: buid, followed_user_id: uid }
+      ]
+    })
+
+    return { message: USERS_MESSAGES.BLOCK_SUCCESS }
+  }
+
+  async unblockUser(user_id: string, blocked_user_id: string) {
+    const uid = new ObjectId(user_id)
+    const buid = new ObjectId(blocked_user_id)
+
+    await databaseService.blockedUsers.deleteOne({
+      user_id: uid,
+      blocked_user_id: buid
+    })
+
+    return { message: USERS_MESSAGES.UNBLOCK_SUCCESS }
+  }
+
+  async getBlockedUsers(user_id: string) {
+    const uid = new ObjectId(user_id)
+    const blocked = await databaseService.blockedUsers
+      .aggregate([
+        { $match: { user_id: uid } },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'blocked_user_id',
+            foreignField: '_id',
+            as: 'user'
+          }
+        },
+        { $unwind: '$user' },
+        {
+          $project: {
+            _id: '$user._id',
+            name: '$user.name',
+            username: '$user.username',
+            avatar: '$user.avatar'
+          }
+        }
+      ])
+      .toArray()
+    return blocked
   }
 }
 

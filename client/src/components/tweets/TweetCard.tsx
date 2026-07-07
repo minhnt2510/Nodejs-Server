@@ -6,6 +6,8 @@ import type { Tweet } from '../../types'
 import { MediaType, TweetType } from '../../types'
 import { formatCount, formatRelativeTime } from '../../utils/format'
 import { Avatar } from '../ui/Avatar'
+import { ImageModal } from '../ui/ImageModal'
+import { AvatarModal } from '../ui/AvatarModal'
 
 interface TweetCardProps {
   tweet: Tweet
@@ -46,12 +48,15 @@ export function TweetCard({
   onUpdate,
   onDelete
 }: TweetCardProps) {
-  const { user } = useAuth()
+  const { user, isVerified } = useAuth()
   const navigate = useNavigate()
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(tweet.content)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [openMenu, setOpenMenu] = useState(false)
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
+  const [selectedImageUrl, setSelectedImageUrl] = useState('')
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false)
   const author = tweet.user
   const authorName = author?.name || 'Twitter Social User'
   const username = author?.username || String(tweet.user_id).slice(-8)
@@ -90,7 +95,15 @@ export function TweetCard({
       className="cursor-pointer border-b border-twitter-border px-5 py-4 transition hover:bg-white/[0.025]"
     >
       <div className="flex gap-4">
-        <Avatar src={author?.avatar} name={authorName} />
+        <div
+          onClick={(e) => {
+            stopClick(e)
+            if (author) setIsAvatarModalOpen(true)
+          }}
+          className="cursor-pointer transition hover:scale-[1.05]"
+        >
+          <Avatar src={author?.avatar} name={authorName} />
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1 text-sm">
             <Link to={`/${username}`} onClick={stopClick} className="font-black text-twitter-text hover:underline">
@@ -206,7 +219,9 @@ export function TweetCard({
 
           {tweet.medias?.length ? (
             <div
-              className={`mt-3 grid gap-1 overflow-hidden rounded-3xl ${tweet.medias.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}
+              className={`mt-3 grid gap-1 overflow-hidden rounded-3xl ${
+                tweet.medias.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
+              }`}
             >
               {tweet.medias.map((media) =>
                 media.type === MediaType.Image ? (
@@ -215,8 +230,14 @@ export function TweetCard({
                     src={media.url}
                     alt=""
                     loading="lazy"
-                    className="h-64 w-full object-cover"
-                    onClick={stopClick}
+                    className={`w-full cursor-pointer bg-black/10 transition hover:brightness-95 ${
+                      tweet.medias.length === 1 ? 'max-h-[450px] object-contain' : 'h-64 object-cover'
+                    }`}
+                    onClick={(event) => {
+                      stopClick(event)
+                      setSelectedImageUrl(media.url)
+                      setIsImageModalOpen(true)
+                    }}
                   />
                 ) : media.type === MediaType.Video ? (
                   <video
@@ -240,21 +261,27 @@ export function TweetCard({
             </div>
           ) : null}
 
-          <div className="mt-3 grid grid-cols-4 text-sm font-semibold text-twitter-muted">
-            <span className="rounded-full px-2 py-2 transition hover:bg-twitter-blue/10 hover:text-twitter-blue">
-              Replies {formatCount(tweet.comment_count)}
-            </span>
+          <div className="mt-3 grid grid-cols-4 text-sm font-semibold">
+            <div className="flex items-center gap-2 rounded-full py-1.5 transition text-twitter-muted hover:text-twitter-blue">
+              <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              <span className="text-xs">{formatCount(tweet.comment_count)}</span>
+            </div>
             <button
               type="button"
               onClick={(event) => {
                 stopClick(event)
                 onRetweet?.(tweet)
               }}
-              className={`rounded-full px-2 py-2 text-left transition hover:bg-emerald-400/10 hover:text-emerald-300 ${
-                tweet.viewer_repost_id ? 'text-emerald-300' : ''
+              className={`flex items-center gap-2 rounded-full py-1.5 transition text-left hover:text-emerald-400 ${
+                tweet.viewer_repost_id ? 'text-emerald-400' : 'text-twitter-muted'
               }`}
             >
-              {tweet.viewer_repost_id ? 'Undo repost' : 'Repost'} {formatCount(tweet.retweet_count)}
+              <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              <span className="text-xs">{formatCount(tweet.retweet_count)}</span>
             </button>
             <button
               type="button"
@@ -262,11 +289,14 @@ export function TweetCard({
                 stopClick(event)
                 onLike?.(tweet)
               }}
-              className={`rounded-full px-2 py-2 text-left transition hover:bg-rose-400/10 hover:text-rose-300 ${
-                liked ? 'text-rose-300' : ''
+              className={`flex items-center gap-2 rounded-full py-1.5 transition text-left hover:text-rose-400 ${
+                liked ? 'text-rose-400' : 'text-twitter-muted'
               }`}
             >
-              Like {formatCount(tweet.likes)}
+              <svg className="size-5" fill={liked ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+              <span className="text-xs">{formatCount(tweet.likes)}</span>
             </button>
             <button
               type="button"
@@ -274,15 +304,36 @@ export function TweetCard({
                 stopClick(event)
                 onBookmark?.(tweet)
               }}
-              className={`rounded-full px-2 py-2 text-left transition hover:bg-twitter-blue/10 hover:text-twitter-blue ${
-                bookmarked ? 'text-twitter-blue' : ''
+              className={`flex items-center gap-2 rounded-full py-1.5 transition text-left hover:text-twitter-blue ${
+                bookmarked ? 'text-twitter-blue' : 'text-twitter-muted'
               }`}
             >
-              Save {formatCount(tweet.bookmarks)}
+              <svg className="size-5" fill={bookmarked ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+              <span className="text-xs">{formatCount(tweet.bookmarks)}</span>
             </button>
           </div>
         </div>
       </div>
+
+      {isImageModalOpen && (
+        <ImageModal
+          isOpen={isImageModalOpen}
+          onClose={() => setIsImageModalOpen(false)}
+          src={selectedImageUrl}
+        />
+      )}
+
+      {isAvatarModalOpen && author && (
+        <AvatarModal
+          isOpen={isAvatarModalOpen}
+          onClose={() => setIsAvatarModalOpen(false)}
+          user={author}
+          currentUser={user}
+          isVerified={isVerified}
+        />
+      )}
     </article>
   )
 }

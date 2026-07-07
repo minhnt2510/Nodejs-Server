@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useNotification } from '../../contexts/NotificationContext'
 import { Avatar } from '../ui/Avatar'
@@ -22,8 +22,12 @@ export function AppLayout() {
   const { user, isVerified, logout } = useAuth()
   const { unreadCount } = useNotification()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
 
   const profilePath = user?.username ? `/${user.username}` : '/profile'
+  const isChatPage = location.pathname === '/chat'
+  const isChattingOnMobile = isChatPage && searchParams.get('receiver_id')
 
   const onLogout = async () => {
     await logout()
@@ -97,7 +101,7 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <main className="relative border-r border-twitter-border">
+      <main className={`relative border-r border-twitter-border ${isChatPage ? '' : 'pb-16 md:pb-0'}`}>
         {!isVerified ? (
           <div className="border-b border-amber-300/20 bg-amber-300/10 px-5 py-3 text-sm text-amber-100">
             Your account is not verified yet.{' '}
@@ -125,7 +129,9 @@ export function AppLayout() {
         </section>
       </aside>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-twitter-border bg-twitter-bg/95 px-2 py-2 backdrop-blur md:hidden">
+      <nav className={`fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-twitter-border bg-twitter-bg/95 px-2 py-2 backdrop-blur md:hidden ${
+        isChattingOnMobile ? 'hidden' : ''
+      }`}>
         {navItems.map((item) => (
           <NavLink
             key={item.to}

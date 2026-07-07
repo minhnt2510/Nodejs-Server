@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { socialApi } from '../apis/social'
 import { tweetsApi } from '../apis/tweets'
 import { TweetCard } from '../components/tweets/TweetCard'
@@ -173,11 +173,20 @@ export function TweetDetailPage() {
 
   return (
     <section className="animate-fade-in">
-      <header className="sticky top-0 z-20 border-b border-twitter-border bg-twitter-bg/80 px-5 py-4 backdrop-blur-xl">
-        <Link to="/" className="text-sm font-bold text-twitter-blue hover:underline">
-          Back
-        </Link>
-        <h1 className="mt-1 text-xl font-black">Tweet</h1>
+      <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-twitter-border bg-twitter-bg/80 px-5 py-3 backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="rounded-full p-2 text-twitter-text transition hover:bg-white/5"
+          aria-label="Back"
+        >
+          <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div>
+          <h1 className="text-xl font-black leading-tight">Tweet</h1>
+        </div>
       </header>
 
       {!isVerified ? (

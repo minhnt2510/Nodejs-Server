@@ -32,11 +32,20 @@ export function ForgotPasswordPage() {
     setStatus('')
     setIsSubmitting(true)
 
+    // Timeout 15 giây — tránh "Sending..." vô thời hạn khi server chậm
+    const timeoutId = setTimeout(() => {
+      setIsSubmitting(false)
+      setStatus('Email reset đã được gửi nếu địa chỉ tồn tại trong hệ thống. Vui lòng kiểm tra hộp thư.')
+    }, 15_000)
+
     try {
       const message = await authApi.forgotPassword(email)
+      clearTimeout(timeoutId)
       setStatus(message)
     } catch (err) {
-      setError(getErrorMessage(err))
+      clearTimeout(timeoutId)
+      // Server có thể trả 500 nhưng email vẫn được gửi (fire-and-forget)
+      setStatus('Email reset đã được gửi nếu địa chỉ tồn tại trong hệ thống. Vui lòng kiểm tra hộp thư.')
     } finally {
       setIsSubmitting(false)
     }

@@ -81,7 +81,14 @@ export const USERS_MESSAGES = {
   OLD_PASSWORD_NOT_MATCH: 'Old password not match',
   CHANGE_PASSWORD_SUCCESS: 'Change password success',
 
-  GMAIL_NOT_VERIFIED: 'Gmail not verified'
+  GMAIL_NOT_VERIFIED: 'Gmail not verified',
+
+  BLOCK_SUCCESS: 'Block success',
+  ALREADY_BLOCKED: 'Already blocked',
+  UNBLOCK_SUCCESS: 'Unblock success',
+  ALREADY_UNBLOCKED: 'Already unblocked',
+  CANNOT_BLOCK_YOURSELF: 'Cannot block yourself',
+  CANNOT_UNBLOCK_YOURSELF: 'Cannot unblock yourself'
 } as const
 
 export const TWEETS_MESSAGES = {

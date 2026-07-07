@@ -35,6 +35,8 @@ export const envConfig = {
   awsRegion: process.env.AWS_REGION || 'ap-southeast-1',
   s3BucketName: process.env.S3_BUCKET_NAME as string,
   sesFromAddress: process.env.SES_FROM_ADDRESS as string,
+  // Tắt S3 khi dev local: set USE_S3=false trong .env
+  useS3: process.env.USE_S3 !== 'false',
 
   passwordSecret: process.env.PASSWORD_SECRET || 'twitter-secret',
   geminiApiKey: process.env.GEMINI_API_KEY as string

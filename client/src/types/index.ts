@@ -16,6 +16,8 @@ export interface User {
   following_count?: number
   created_at?: string
   updated_at?: string
+  is_blocked?: boolean
+  blocked_by?: boolean
 }
 
 export interface Tweet {
@@ -49,11 +51,18 @@ export interface Media {
   type: MediaTypeValue
 }
 
+export interface MessageReaction {
+  user_id: string
+  emoji: string
+}
+
 export interface Conversation {
   _id: string
   sender_id: string
   receiver_id: string
   content: string
+  is_deleted?: boolean
+  reactions?: MessageReaction[]
   created_at: string
 }
 

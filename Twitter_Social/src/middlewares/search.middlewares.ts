@@ -3,12 +3,34 @@ import { MediaQueryType, PeopleFollow } from '~/constants/enums'
 import { SEARCH_MESSAGES } from '~/constants/messages'
 import { validate } from '~/utils/validation'
 
+/**
+ * Bài 182: searchValidator
+ *
+ * Validator cho tính năng search nâng cao.
+ * Kiểm tra toàn bộ query params được gửi lên từ client.
+ *
+ * - content      : bắt buộc, không được rỗng
+ * - media_type   : tuỳ chọn, chỉ nhận 'image' | 'video'  (Bài 180)
+ * - people_follow: tuỳ chọn, chỉ nhận '0' | '1'          (Bài 181)
+ *
+ * Lưu ý Bài 178 & 179:
+ *   Khi gửi từ khoá có dấu tiếng Việt hoặc ký tự đặc biệt,
+ *   client PHẢI encodeURIComponent(content) trước khi gắn vào URL.
+ *   Phía server KHÔNG cần decode thủ công vì Express tự xử lý.
+ *   Index MongoDB được tạo với { default_language: 'none' }
+ *   để hỗ trợ tìm kiếm tiếng Việt không dấu / có dấu.
+ */
 export const searchValidator = validate(
   checkSchema(
     {
       content: {
-        isString: true,
-        notEmpty: { errorMessage: SEARCH_MESSAGES.CONTENT_MUST_BE_A_NON_EMPTY_STRING }
+        isString: {
+          errorMessage: SEARCH_MESSAGES.CONTENT_MUST_BE_A_NON_EMPTY_STRING
+        },
+        notEmpty: {
+          errorMessage: SEARCH_MESSAGES.CONTENT_MUST_BE_A_NON_EMPTY_STRING
+        },
+        trim: true
       },
       media_type: {
         optional: true,

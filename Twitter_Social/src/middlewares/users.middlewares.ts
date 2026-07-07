@@ -467,3 +467,70 @@ export const isUserLoggedInValidator = (middleware: (req: Request, res: Response
     next()
   }
 }
+
+export const blockValidator = validate(
+  checkSchema(
+    {
+      blocked_user_id: {
+        ...userIdSchema,
+        custom: {
+          options: async (value: string, { req }) => {
+            const { user_id } = (req as Request).decoded_authorization as TokenPayload
+            if (user_id === value) {
+              throw new ErrorWithStatus({
+                message: USERS_MESSAGES.CANNOT_BLOCK_YOURSELF,
+                status: HTTP_STATUS.BAD_REQUEST
+              })
+            }
+            const isBlocked = await databaseService.blockedUsers.findOne({
+              user_id: new ObjectId(user_id),
+              blocked_user_id: new ObjectId(value)
+            })
+            if (isBlocked) {
+              throw new ErrorWithStatus({
+                message: USERS_MESSAGES.ALREADY_BLOCKED,
+                status: HTTP_STATUS.BAD_REQUEST
+              })
+            }
+            return true
+          }
+        }
+      }
+    },
+    ['body']
+  )
+)
+
+export const unblockValidator = validate(
+  checkSchema(
+    {
+      user_id: {
+        ...userIdSchema,
+        custom: {
+          options: async (value: string, { req }) => {
+            const { user_id } = (req as Request).decoded_authorization as TokenPayload
+            if (user_id === value) {
+              throw new ErrorWithStatus({
+                message: USERS_MESSAGES.CANNOT_UNBLOCK_YOURSELF,
+                status: HTTP_STATUS.BAD_REQUEST
+              })
+            }
+            const isBlocked = await databaseService.blockedUsers.findOne({
+              user_id: new ObjectId(user_id),
+              blocked_user_id: new ObjectId(value)
+            })
+            if (!isBlocked) {
+              throw new ErrorWithStatus({
+                message: USERS_MESSAGES.ALREADY_UNBLOCKED,
+                status: HTTP_STATUS.BAD_REQUEST
+              })
+            }
+            return true
+          }
+        }
+      }
+    },
+    ['params']
+  )
+)
+

@@ -10,15 +10,18 @@ import { Conversation } from '~/models/schemas/Conversation.schema'
 import databaseService from '~/services/database.services'
 import { verifyToken } from '~/utils/jwt'
 
+let ioInstance: Server | null = null
+export const activeSockets: Record<string, string> = {}
+
+export const getIo = () => ioInstance
+
 const initSocket = (httpServer: HttpServer) => {
   const io = new Server(httpServer, {
     cors: {
       origin: '*'
     }
   })
-
-  // Map user_id → socket_id
-  const users: Record<string, string> = {}
+  ioInstance = io
 
   // Middleware xác thực socket
   io.use(async (socket, next) => {
@@ -43,13 +46,29 @@ const initSocket = (httpServer: HttpServer) => {
 
   io.on('connection', (socket) => {
     const { user_id } = socket.handshake.auth.decoded_authorization as TokenPayload
-    users[user_id] = socket.id
+    activeSockets[user_id] = socket.id
     console.log(`User ${user_id} connected (socket: ${socket.id})`)
 
     // Nhận tin nhắn và forward đến receiver
     socket.on('send_message', async (data) => {
       const { receiver_id, sender_id, content } = data.payload
-      const receiver_socket_id = users[receiver_id]
+
+      // Check block status
+      const isBlocked = await databaseService.blockedUsers.findOne({
+        $or: [
+          { user_id: new ObjectId(sender_id), blocked_user_id: new ObjectId(receiver_id) },
+          { user_id: new ObjectId(receiver_id), blocked_user_id: new ObjectId(sender_id) }
+        ]
+      })
+
+      if (isBlocked) {
+        socket.emit('send_message_error', {
+          message: 'You cannot send messages to this user'
+        })
+        return
+      }
+
+      const receiver_socket_id = activeSockets[receiver_id]
 
       // Lưu vào DB
       const conversation = new Conversation({
@@ -67,8 +86,79 @@ const initSocket = (httpServer: HttpServer) => {
       }
     })
 
+    // Xóa tin nhắn (thu hồi)
+    socket.on('delete_message', async (data) => {
+      const { message_id, receiver_id } = data
+      const messageObjectId = new ObjectId(message_id)
+
+      const updateResult = await databaseService.conversations.updateOne(
+        {
+          _id: messageObjectId,
+          sender_id: new ObjectId(user_id) // Chỉ người gửi mới được xóa
+        },
+        {
+          $set: {
+            is_deleted: true,
+            content: 'Tin nhắn đã bị thu hồi',
+            updated_at: new Date()
+          }
+        }
+      )
+
+      if (updateResult.modifiedCount > 0) {
+        const receiver_socket_id = activeSockets[receiver_id]
+        socket.emit('message_deleted', { message_id })
+        if (receiver_socket_id) {
+          socket.to(receiver_socket_id).emit('message_deleted', { message_id })
+        }
+      }
+    })
+
+    // Thả cảm xúc emoji
+    socket.on('react_message', async (data) => {
+      const { message_id, receiver_id, emoji } = data
+      const messageObjectId = new ObjectId(message_id)
+      const uid = new ObjectId(user_id)
+
+      const message = await databaseService.conversations.findOne({ _id: messageObjectId })
+      if (!message) return
+
+      const updatedReactions = [...(message.reactions || [])]
+      const existingReactionIndex = updatedReactions.findIndex((r) => r.user_id.toString() === user_id)
+
+      if (emoji) {
+        if (existingReactionIndex > -1) {
+          updatedReactions[existingReactionIndex].emoji = emoji
+        } else {
+          updatedReactions.push({ user_id: uid, emoji })
+        }
+      } else {
+        if (existingReactionIndex > -1) {
+          updatedReactions.splice(existingReactionIndex, 1)
+        }
+      }
+
+      const updateResult = await databaseService.conversations.updateOne(
+        { _id: messageObjectId },
+        {
+          $set: {
+            reactions: updatedReactions,
+            updated_at: new Date()
+          }
+        }
+      )
+
+      if (updateResult.modifiedCount > 0 || updateResult.matchedCount > 0) {
+        const receiver_socket_id = activeSockets[receiver_id]
+        socket.emit('message_reacted', { message_id, reactions: updatedReactions })
+        if (receiver_socket_id) {
+          socket.to(receiver_socket_id).emit('message_reacted', { message_id, reactions: updatedReactions })
+        }
+      }
+    })
+
     socket.on('disconnect', () => {
-      delete users[user_id]
+      delete activeSockets[user_id]
       console.log(`User ${user_id} disconnected`)
     })
   })

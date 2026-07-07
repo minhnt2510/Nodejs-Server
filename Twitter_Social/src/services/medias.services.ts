@@ -125,20 +125,24 @@ class MediasService {
         await sharp(file.filepath).jpeg().toFile(newPath)
         fs.unlinkSync(file.filepath)
 
-        // Try S3 upload
-        try {
-          await uploadFileToS3({ filename: 'images/' + newFullFilename, filepath: newPath, contentType: 'image/jpeg' })
-          fs.unlinkSync(newPath)
-          return {
-            url: `https://${envConfig.s3BucketName}.s3.${envConfig.awsRegion}.amazonaws.com/images/${newFullFilename}`,
-            type: MediaType.Image
-          }
-        } catch {
-          return {
-            url: `${envConfig.host.includes('localhost') ? `${envConfig.host}:${envConfig.port}` : envConfig.host}/static/image/${newFullFilename}`,
-            type: MediaType.Image
+        const localUrl = `${envConfig.host.includes('localhost') ? `${envConfig.host}:${envConfig.port}` : envConfig.host}/static/image/${newFullFilename}`
+
+        // Chỉ thử S3 khi được bật VÀ credentials đầy đủ
+        if (envConfig.useS3 && envConfig.awsAccessKeyId && envConfig.awsSecretAccessKey && envConfig.s3BucketName) {
+          try {
+            await uploadFileToS3({ filename: 'images/' + newFullFilename, filepath: newPath, contentType: 'image/jpeg' })
+            fs.unlinkSync(newPath) // xóa local chỉ khi S3 upload thành công
+            return {
+              url: `https://${envConfig.s3BucketName}.s3.${envConfig.awsRegion}.amazonaws.com/images/${newFullFilename}`,
+              type: MediaType.Image
+            }
+          } catch (err) {
+            console.error('[S3] Image upload failed, fallback to local:', (err as Error).message)
           }
         }
+
+        // Fallback: serve từ local static
+        return { url: localUrl, type: MediaType.Image }
       })
     )
     return result

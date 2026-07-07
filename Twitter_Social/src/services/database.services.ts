@@ -9,6 +9,8 @@ import RefreshToken from '~/models/schemas/RefreshToken.schema'
 import Tweet from '~/models/schemas/Tweet.schema'
 import User from '~/models/schemas/User.schema'
 import VideoStatus from '~/models/schemas/VideoStatus.schema'
+import { BlockedUser } from '~/models/schemas/BlockedUser.schema'
+
 
 const uri = envConfig.dbHost
 
@@ -31,6 +33,7 @@ class DatabaseService {
       await this.indexVideoStatus()
       await this.indexFollowers()
       await this.indexTweets()
+      await this.indexBlockedUsers()
     } catch (error) {
       console.error('Error connecting to MongoDB:', error)
       throw error
@@ -79,6 +82,10 @@ class DatabaseService {
     return this.db.collection('conversations')
   }
 
+  get blockedUsers(): Collection<BlockedUser> {
+    return this.db.collection('blocked_users')
+  }
+
   // ----------- Indexes -----------
   private async indexUsers() {
     try {
@@ -117,7 +124,26 @@ class DatabaseService {
 
   private async indexTweets() {
     try {
+      /**
+       * Bài 178: Fix lỗi tìm không được một số từ
+       * ─────────────────────────────────────────────
+       * Mặc định MongoDB dùng tiếng Anh (english) cho text index.
+       * Điều này khiến các "stop words" (a, an, the, is, ...) bị bỏ qua
+       * khi index và khi tìm kiếm → không tìm được một số từ.
+       *
+       * Fix: đặt default_language: 'none' để MongoDB không áp dụng
+       * stemming và stop words — tìm kiếm chính xác từng từ.
+       * Đây cũng là điều kiện cần để hỗ trợ tiếng Việt.
+       */
       await this.tweets.createIndex({ content: 'text' }, { default_language: 'none' })
+    } catch {
+      // Indexes may already exist
+    }
+  }
+
+  private async indexBlockedUsers() {
+    try {
+      await this.blockedUsers.createIndex({ user_id: 1, blocked_user_id: 1 }, { unique: true })
     } catch {
       // Indexes may already exist
     }

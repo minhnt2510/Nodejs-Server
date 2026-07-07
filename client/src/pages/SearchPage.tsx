@@ -301,6 +301,7 @@ export function SearchPage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Link
                     to={`/chat?receiver_id=${target._id}`}
+                    state={{ receiverInfo: target }}
                     className="rounded-full border border-twitter-border px-4 py-2 text-sm font-black text-twitter-text transition hover:bg-white/5"
                   >
                     Message

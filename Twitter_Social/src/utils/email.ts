@@ -2,12 +2,16 @@ import nodemailer from 'nodemailer'
 import { envConfig } from '~/constants/config'
 
 const transporter = nodemailer.createTransport({
-  service: envConfig.smtpService,
+  // Khai báo tường minh thay vì dùng `service` để tránh resolve IPv6
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // SSL
+  family: 4,    // ← Ép dùng IPv4, tránh ENETUNREACH trên mạng không có IPv6
   auth: {
     user: envConfig.smtpUser,
     pass: envConfig.smtpPass
   }
-})
+} as any)
 
 export const sendEmail = async ({ to, subject, html }: { to: string; subject: string; html: string }) => {
   await transporter.sendMail({
@@ -18,9 +22,19 @@ export const sendEmail = async ({ to, subject, html }: { to: string; subject: st
   })
 }
 
-export const sendVerifyEmail = async (toAddress: string, email_verify_token: string, template?: string) => {
+/**
+ * Gửi email không chặn response (fire-and-forget).
+ * Lỗi SMTP chỉ log ra console, không throw lên caller.
+ */
+export const sendEmailAsync = (args: { to: string; subject: string; html: string }) => {
+  sendEmail(args).catch((err) => {
+    console.error('[Email] Failed to send to', args.to, '-', err?.message ?? err)
+  })
+}
+
+export const sendVerifyEmail = (toAddress: string, email_verify_token: string, template?: string) => {
   const verifyLink = `${envConfig.clientUrl}/verify-email?token=${email_verify_token}`
-  return sendEmail({
+  sendEmailAsync({
     to: toAddress,
     subject: 'Xác thực email Twitter Clone',
     html: template || `
@@ -36,11 +50,12 @@ export const sendVerifyEmail = async (toAddress: string, email_verify_token: str
       </div>
     `
   })
+  // fire-and-forget: không return Promise, không block response
 }
 
-export const sendForgotPasswordEmail = async (toAddress: string, forgot_password_token: string, template?: string) => {
+export const sendForgotPasswordEmail = (toAddress: string, forgot_password_token: string, template?: string) => {
   const resetLink = `${envConfig.clientUrl}/forgot-password?token=${forgot_password_token}`
-  return sendEmail({
+  sendEmailAsync({
     to: toAddress,
     subject: 'Đặt lại mật khẩu Twitter Clone',
     html: template || `
@@ -56,4 +71,5 @@ export const sendForgotPasswordEmail = async (toAddress: string, forgot_password
       </div>
     `
   })
+  // fire-and-forget: không return Promise, không block response
 }

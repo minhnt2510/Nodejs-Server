@@ -23,7 +23,7 @@ interface ImagePreview {
 }
 
 const MAX_IMAGES = 4
-const MAX_IMAGE_SIZE = 300 * 1024
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5 MB
 
 function extractHashtags(content: string) {
   const matches = content.matchAll(/#([A-Za-z0-9_]+)/g)
@@ -55,7 +55,7 @@ export function TweetComposer({
 
     const invalidFile = files.find((file) => file.size > MAX_IMAGE_SIZE)
     if (invalidFile) {
-      setError(`${invalidFile.name} is too large. Backend accepts images up to 300KB.`)
+      setError(`${invalidFile.name} quá lớn. Tối đa 5 MB mỗi ảnh.`)
       event.target.value = ''
       return
     }
@@ -147,14 +147,15 @@ export function TweetComposer({
           {images.length ? (
             <div className="mt-3 grid grid-cols-2 gap-2 overflow-hidden rounded-3xl">
               {images.map((image) => (
-                <div key={image.previewUrl} className="group relative">
-                  <img src={image.previewUrl} alt="" className="h-40 w-full object-cover" />
+                <div key={image.previewUrl} className="group relative bg-black/20 rounded-2xl overflow-hidden border border-twitter-border/40">
+                  <img src={image.previewUrl} alt="" className="h-40 w-full object-contain" />
                   <button
                     type="button"
                     onClick={() => removeImage(image.previewUrl)}
-                    className="absolute right-2 top-2 rounded-full bg-black/60 px-3 py-1 text-sm font-bold text-white opacity-0 transition group-hover:opacity-100"
+                    className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80 md:opacity-0 md:group-hover:opacity-100"
+                    aria-label="Remove image"
                   >
-                    Remove
+                    ✕
                   </button>
                 </div>
               ))}

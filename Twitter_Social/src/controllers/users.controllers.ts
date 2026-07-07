@@ -20,11 +20,15 @@ import {
   UnfollowReqParams,
   UpdateMeReqBody,
   VerifyEmailReqBody,
-  VerifyForgotPasswordReqBody
+  VerifyForgotPasswordReqBody,
+  BlockReqBody,
+  UnblockReqParams
 } from '~/models/requests/User.requests'
 import { envConfig } from '~/constants/config'
 import databaseService from '~/services/database.services'
 import usersService from '~/services/users.services'
+import { activeSockets, getIo } from '~/utils/socket'
+
 
 export const loginController = async (req: Request<ParamsDictionary, any, LoginReqBody>, res: Response) => {
   const { user } = req
@@ -131,6 +135,18 @@ export const getContactsController = async (req: Request, res: Response) => {
   return res.json({ message: 'Get contacts success', result: contacts })
 }
 
+export const getFollowingOfUserController = async (req: Request, res: Response) => {
+  const { user_id } = req.params
+  const following = await usersService.getFollowing(user_id)
+  return res.json({ message: 'Get following success', result: following })
+}
+
+export const getFollowersOfUserController = async (req: Request, res: Response) => {
+  const { user_id } = req.params
+  const followers = await usersService.getFollowers(user_id)
+  return res.json({ message: 'Get followers success', result: followers })
+}
+
 export const updateMeController = async (req: Request<ParamsDictionary, any, UpdateMeReqBody>, res: Response) => {
   const { user_id } = req.decoded_authorization as TokenPayload
   const { body } = req
@@ -196,3 +212,53 @@ export const changePasswordController = async (
   const result = await usersService.changePassword(user_id, password)
   return res.json(result)
 }
+
+export const blockController = async (req: Request<ParamsDictionary, any, BlockReqBody>, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { blocked_user_id } = req.body
+  const result = await usersService.blockUser(user_id, blocked_user_id)
+
+  const io = getIo()
+  if (io) {
+    const receiverSocketId = activeSockets[blocked_user_id]
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('block_status_changed', {
+        blocker_id: user_id,
+        blocked_id: blocked_user_id,
+        is_blocked: true
+      })
+    }
+  }
+
+  return res.json(result)
+}
+
+export const unblockController = async (req: Request<UnblockReqParams>, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const { user_id: blocked_user_id } = req.params
+  const result = await usersService.unblockUser(user_id, blocked_user_id)
+
+  const io = getIo()
+  if (io) {
+    const receiverSocketId = activeSockets[blocked_user_id]
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('block_status_changed', {
+        blocker_id: user_id,
+        blocked_id: blocked_user_id,
+        is_blocked: false
+      })
+    }
+  }
+
+  return res.json(result)
+}
+
+export const getBlockedUsersController = async (req: Request, res: Response) => {
+  const { user_id } = req.decoded_authorization as TokenPayload
+  const result = await usersService.getBlockedUsers(user_id)
+  return res.json({
+    message: 'Get blocked users success',
+    result
+  })
+}
+

@@ -111,5 +111,32 @@ export const authApi = {
   async getContacts() {
     const { data } = await http.get<ApiResponse<User[]>>('/users/contacts')
     return readResult(data)
+  },
+
+  async getFollowingOfUser(userId: string) {
+    const { data } = await http.get<ApiResponse<User[]>>(`/users/${userId}/following`)
+    return readResult(data)
+  },
+
+  async getFollowersOfUser(userId: string) {
+    const { data } = await http.get<ApiResponse<User[]>>(`/users/${userId}/followers`)
+    return readResult(data)
+  },
+
+  async block(blockedUserId: string) {
+    const { data } = await http.post<ApiResponse>('/users/block', {
+      blocked_user_id: blockedUserId
+    })
+    return data.message
+  },
+
+  async unblock(userId: string) {
+    const { data } = await http.delete<ApiResponse>(`/users/block/${userId}`)
+    return data.message
+  },
+
+  async getBlockedUsers() {
+    const { data } = await http.get<ApiResponse<User[]>>('/users/blocked')
+    return readResult(data)
   }
 }
