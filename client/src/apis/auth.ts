@@ -63,8 +63,8 @@ export const authApi = {
   },
 
   async forgotPassword(email: string) {
-    const { data } = await http.post<ApiResponse>('/users/forgot-password', { email })
-    return data.message
+    const { data } = await http.post<ApiResponse<{ forgot_password_token: string }>>('/users/forgot-password', { email })
+    return data
   },
 
   async verifyForgotPasswordToken(forgotPasswordToken: string) {

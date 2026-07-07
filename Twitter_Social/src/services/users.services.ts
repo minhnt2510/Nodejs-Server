@@ -186,7 +186,7 @@ class UsersService {
       { $set: { forgot_password_token }, $currentDate: { updated_at: true } }
     )
     await sendForgotPasswordEmail(email, forgot_password_token)
-    return { message: USERS_MESSAGES.CHECK_EMAIL_TO_RESET_PASSWORD }
+    return { forgot_password_token }
   }
 
   async resetPassword(user_id: string, password: string) {

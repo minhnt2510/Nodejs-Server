@@ -14,6 +14,7 @@ export function ForgotPasswordPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [status, setStatus] = useState('')
+  const [resetToken, setResetToken] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -30,6 +31,7 @@ export function ForgotPasswordPage() {
     event.preventDefault()
     setError('')
     setStatus('')
+    setResetToken('')
     setIsSubmitting(true)
 
     // Timeout 15 giây — tránh "Sending..." vô thời hạn khi server chậm
@@ -39,9 +41,12 @@ export function ForgotPasswordPage() {
     }, 15_000)
 
     try {
-      const message = await authApi.forgotPassword(email)
+      const res = await authApi.forgotPassword(email)
       clearTimeout(timeoutId)
-      setStatus(message)
+      setStatus(res.message)
+      if (res.result?.forgot_password_token) {
+        setResetToken(res.result.forgot_password_token)
+      }
     } catch (err) {
       clearTimeout(timeoutId)
       // Server có thể trả 500 nhưng email vẫn được gửi (fire-and-forget)
@@ -96,6 +101,21 @@ export function ForgotPasswordPage() {
                   <span className="font-bold text-twitter-text block mb-1">🔑 Hướng dẫn lấy lại mật khẩu:</span>
                   Hãy kiểm tra xem địa chỉ email của bạn đã chính xác chưa. Nếu chính xác, vui lòng click vào liên kết được gửi trong email để đặt lại mật khẩu mới.
                 </div>
+                {resetToken && (
+                  <>
+                    <hr className="border-twitter-border" />
+                    <div>
+                      <span className="font-bold text-twitter-blue block mb-1">🔗 Liên kết dự phòng đặt lại mật khẩu (Không cần email):</span>
+                      Nếu không nhận được email, bạn có thể click trực tiếp vào link dưới đây để đổi mật khẩu ngay lập tức:
+                      <Link
+                        to={`/forgot-password?token=${resetToken}`}
+                        className="block mt-2 font-bold text-twitter-blue hover:underline break-all"
+                      >
+                        {`${window.location.origin}/forgot-password?token=${resetToken}`}
+                      </Link>
+                    </div>
+                  </>
+                )}
                 <hr className="border-twitter-border" />
                 <div>
                   <span className="font-bold text-yellow-600 dark:text-yellow-500 block mb-1">💡 Hướng dẫn cho Tester:</span>
