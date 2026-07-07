@@ -1,5 +1,18 @@
 import nodemailer from 'nodemailer'
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 import { envConfig } from '~/constants/config'
+
+// Khởi tạo SES Client nếu có đầy đủ thông tin xác thực AWS
+let sesClient: SESClient | null = null
+if (envConfig.awsAccessKeyId && envConfig.awsSecretAccessKey) {
+  sesClient = new SESClient({
+    region: envConfig.awsRegion,
+    credentials: {
+      accessKeyId: envConfig.awsAccessKeyId,
+      secretAccessKey: envConfig.awsSecretAccessKey
+    }
+  })
+}
 
 const transporter = nodemailer.createTransport({
   // Khai báo tường minh thay vì dùng `service` để tránh resolve IPv6
@@ -14,6 +27,31 @@ const transporter = nodemailer.createTransport({
 } as any)
 
 export const sendEmail = async ({ to, subject, html }: { to: string; subject: string; html: string }) => {
+  // Nếu cấu hình AWS SES được kích hoạt và có email gửi đi, ưu tiên dùng SES (tránh bị chặn SMTP trên Cloud)
+  if (sesClient && envConfig.sesFromAddress) {
+    const command = new SendEmailCommand({
+      Source: envConfig.sesFromAddress,
+      Destination: {
+        ToAddresses: [to]
+      },
+      Message: {
+        Subject: {
+          Data: subject,
+          Charset: 'UTF-8'
+        },
+        Body: {
+          Html: {
+            Data: html,
+            Charset: 'UTF-8'
+          }
+        }
+      }
+    })
+    await sesClient.send(command)
+    return
+  }
+
+  // Fallback về Nodemailer SMTP nếu không cấu hình SES
   await transporter.sendMail({
     from: envConfig.smtpFrom,
     to,
