@@ -78,7 +78,7 @@ export function ForgotPasswordPage() {
       description={
         token
           ? 'Choose a new strong password for your Twitter Social account.'
-          : 'Nhập email của bạn để nhận liên kết đặt lại mật khẩu. (Lưu ý: Trong giai đoạn thử nghiệm Sandbox, chỉ các email đã được xác minh trên AWS SES mới có thể nhận được thư).'
+          : 'Enter your email and the backend will send a reset link.'
       }
       footer={
         <Link to="/login" className="font-bold text-twitter-blue hover:underline">
@@ -87,7 +87,17 @@ export function ForgotPasswordPage() {
       }
     >
       <div className="space-y-4">
-        {status ? <Alert type="success">{status}</Alert> : null}
+        {status ? (
+          <div className="space-y-3">
+            <Alert type="success">{status}</Alert>
+            {!token && (
+              <div className="rounded-2xl border border-twitter-border bg-twitter-bg/50 p-4 text-xs text-twitter-muted">
+                <span className="font-bold text-yellow-600 dark:text-yellow-500 block mb-1">💡 Hướng dẫn cho Tester:</span>
+                Nếu bạn không nhận được email (do tài khoản AWS SES Sandbox hạn chế gửi thư), bạn vẫn có thể lấy link đặt lại mật khẩu bằng cách kiểm tra <strong>màn hình Logs trên Render Backend</strong>.
+              </div>
+            )}
+          </div>
+        ) : null}
         {error ? <Alert type="error">{error}</Alert> : null}
 
         {token ? (
