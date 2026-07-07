@@ -523,43 +523,72 @@ export function ChatPage() {
                       <Avatar src={receiverInfo?.avatar} name={receiverInfo?.name || 'User'} size="sm" className="shrink-0" />
                     ) : null}
                     <div className={`flex max-w-[72%] flex-col relative group ${isMine ? 'items-end' : 'items-start'}`}>
-                      {/* Bubble and message content */}
-                      <div
-                        className={`rounded-3xl px-4 py-2.5 text-sm leading-6 relative ${
-                          message.is_deleted
-                            ? 'bg-twitter-surface/20 text-twitter-muted italic border border-twitter-border/40'
-                            : isMine
-                            ? 'rounded-br-md bg-twitter-blue text-white'
-                            : 'rounded-bl-md bg-twitter-surface text-twitter-text'
-                        }`}
-                      >
-                        {message.content}
-                        {message.medias && message.medias.length > 0 && (
-                          <div className={`mt-2 grid gap-1 ${message.medias.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                            {message.medias.map((media) =>
-                              media.type === MediaType.Image ? (
-                                <img
-                                  key={media.url}
-                                  src={media.url}
-                                  alt=""
-                                  loading="lazy"
-                                  className="w-full rounded-xl bg-black/10 object-cover"
-                                  style={{ maxHeight: '200px' }}
-                                />
-                              ) : (
-                                <video
-                                  key={media.url}
-                                  src={media.url}
-                                  controls
-                                  preload="metadata"
-                                  className="w-full rounded-xl bg-black object-cover"
-                                  style={{ maxHeight: '200px' }}
-                                />
-                              )
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      {/* Bubble — chỉ khi có text hoặc deleted */}
+                      {(message.content || message.is_deleted) ? (
+                        <div
+                          className={`rounded-3xl px-4 py-2.5 text-sm leading-6 relative ${
+                            message.is_deleted
+                              ? 'bg-twitter-surface/20 text-twitter-muted italic border border-twitter-border/40'
+                              : isMine
+                              ? 'rounded-br-md bg-twitter-blue text-white'
+                              : 'rounded-bl-md bg-twitter-surface text-twitter-text'
+                          }`}
+                        >
+                          {message.content}
+                          {message.medias && message.medias.length > 0 && (
+                            <div className={`mt-2 -mx-4 -mb-2.5 overflow-hidden rounded-b-[inherit] ${message.medias.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} grid gap-0`}>
+                              {message.medias.map((media) =>
+                                media.type === MediaType.Image ? (
+                                  <img
+                                    key={media.url}
+                                    src={media.url}
+                                    alt=""
+                                    loading="lazy"
+                                    className="w-full bg-black/10 object-cover"
+                                    style={{ maxHeight: '200px' }}
+                                  />
+                                ) : (
+                                  <video
+                                    key={media.url}
+                                    src={media.url}
+                                    controls
+                                    preload="metadata"
+                                    className="w-full bg-black object-cover"
+                                    style={{ maxHeight: '200px' }}
+                                  />
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+
+                      {/* Media-only — không bubble background, tràn viền bo góc */}
+                      {message.medias && message.medias.length > 0 && !message.content && !message.is_deleted && (
+                        <div className={`overflow-hidden ${isMine ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'} ${message.medias.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} grid gap-0`}>
+                          {message.medias.map((media) =>
+                            media.type === MediaType.Image ? (
+                              <img
+                                key={media.url}
+                                src={media.url}
+                                alt=""
+                                loading="lazy"
+                                className="w-full bg-black/10 object-cover"
+                                style={{ maxHeight: '300px' }}
+                              />
+                            ) : (
+                              <video
+                                key={media.url}
+                                src={media.url}
+                                controls
+                                preload="metadata"
+                                className="w-full bg-black object-cover"
+                                style={{ maxHeight: '300px' }}
+                              />
+                            )
+                          )}
+                        </div>
+                      )}
 
                       {/* Emojis Reactions list */}
                       {message.reactions && message.reactions.length > 0 && (
