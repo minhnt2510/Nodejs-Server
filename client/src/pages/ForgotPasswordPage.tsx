@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { authApi } from '../apis/auth'
 import { AuthShell } from '../components/layout/AuthShell'
 import { Alert } from '../components/ui/Alert'
 import { getErrorMessage } from '../lib/http'
 
 export function ForgotPasswordPage() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') || searchParams.get('forgot_password_token') || ''
   const [email, setEmail] = useState('')
@@ -69,6 +69,7 @@ export function ForgotPasswordPage() {
         confirm_password: confirmPassword
       })
       setStatus(message)
+      setTimeout(() => navigate('/login'), 2000)
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -134,7 +135,7 @@ export function ForgotPasswordPage() {
               <input
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => { setPassword(event.target.value); setError('') }}
                 className="w-full rounded-2xl border border-twitter-border bg-twitter-bg px-4 py-3 text-twitter-text outline-none transition focus:border-twitter-blue focus:ring-4 focus:ring-twitter-blue/10"
                 placeholder="Password123!"
                 required
@@ -146,7 +147,7 @@ export function ForgotPasswordPage() {
               <input
                 type="password"
                 value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
+                onChange={(event) => { setConfirmPassword(event.target.value); setError('') }}
                 className="w-full rounded-2xl border border-twitter-border bg-twitter-bg px-4 py-3 text-twitter-text outline-none transition focus:border-twitter-blue focus:ring-4 focus:ring-twitter-blue/10"
                 placeholder="Password123!"
                 required

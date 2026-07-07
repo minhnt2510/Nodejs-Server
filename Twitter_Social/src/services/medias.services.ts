@@ -131,7 +131,6 @@ class MediasService {
         if (envConfig.useS3 && envConfig.awsAccessKeyId && envConfig.awsSecretAccessKey && envConfig.s3BucketName) {
           try {
             await uploadFileToS3({ filename: 'images/' + newFullFilename, filepath: newPath, contentType: 'image/jpeg' })
-            fs.unlinkSync(newPath) // xóa local chỉ khi S3 upload thành công
             return {
               url: `https://${envConfig.s3BucketName}.s3.${envConfig.awsRegion}.amazonaws.com/images/${newFullFilename}`,
               type: MediaType.Image
