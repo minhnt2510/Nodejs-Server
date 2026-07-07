@@ -4,7 +4,7 @@ import { mediasApi } from '../../apis/medias'
 import { tweetsApi } from '../../apis/tweets'
 import { useAuth } from '../../contexts/AuthContext'
 import { getErrorMessage } from '../../lib/http'
-import type { Tweet, TweetTypeValue } from '../../types'
+import type { Media, Tweet, TweetTypeValue } from '../../types'
 import { TweetAudience, TweetType } from '../../types'
 import { Avatar } from '../ui/Avatar'
 import { Alert } from '../ui/Alert'
@@ -136,7 +136,7 @@ export function TweetComposer({
     setIsSubmitting(true)
 
     try {
-      let medias: any[] = []
+      let medias: Media[] = []
       if (images.length) {
         const uploadedImages = await mediasApi.uploadImages(images.map((image) => image.file))
         medias.push(...uploadedImages)
