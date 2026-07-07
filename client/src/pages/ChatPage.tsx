@@ -751,9 +751,9 @@ export function ChatPage() {
                         </div>
                       )}
 
-                      {/* Hover: emoji reactions bar (pt-4 giup khong bi mat hover khi di chuyen chuot) */}
+                      {/* Hover: emoji reactions bar (hien thi cham delay 400ms) */}
                       {!message.is_deleted && (
-                        <div className={`absolute -top-9 ${isMine ? 'right-1' : 'left-1'} hidden group-hover:flex items-center gap-1.5 rounded-full bg-twitter-surface border border-twitter-border px-2.5 py-1.5 shadow-xl z-30 animate-fade-in pt-4 pb-1 -mt-3`}>
+                        <div className={`absolute -top-9 ${isMine ? 'right-1' : 'left-1'} invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-[visibility,opacity] duration-200 delay-[400ms] flex items-center gap-1.5 rounded-full bg-twitter-surface border border-twitter-border px-2.5 py-1.5 shadow-xl z-30 pt-4 pb-1 -mt-3`}>
                           {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
                             <button
                               key={emoji}
@@ -767,9 +767,9 @@ export function ChatPage() {
                         </div>
                       )}
 
-                      {/* 3-dot context button + dropdown */}
+                      {/* 3-dot context button + dropdown (delay 400ms) */}
                       {!message.is_deleted && (
-                        <div className={`absolute ${isMine ? '-left-9' : '-right-9'} top-0 hidden group-hover:block z-30`}>
+                        <div className={`absolute ${isMine ? '-left-9' : '-right-9'} top-0 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-[visibility,opacity] duration-200 delay-[400ms] z-30`}>
                           <button
                             type="button"
                             onClick={() => setContextMsgId(contextMsgId === message._id ? null : message._id)}

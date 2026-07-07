@@ -131,7 +131,11 @@ const initSocket = (httpServer: HttpServer) => {
 
       if (emoji) {
         if (existingReactionIndex > -1) {
-          updatedReactions[existingReactionIndex].emoji = emoji
+          if (updatedReactions[existingReactionIndex].emoji === emoji) {
+            updatedReactions.splice(existingReactionIndex, 1) // toggle off
+          } else {
+            updatedReactions[existingReactionIndex].emoji = emoji // change emoji
+          }
         } else {
           updatedReactions.push({ user_id: uid, emoji })
         }
