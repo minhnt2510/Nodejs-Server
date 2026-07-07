@@ -56,12 +56,19 @@ export interface MessageReaction {
   emoji: string
 }
 
+export interface ReplyTo {
+  message_id: string
+  content: string
+  sender_name: string
+}
+
 export interface Conversation {
   _id: string
   sender_id: string
   receiver_id: string
   content: string
   medias?: Media[]
+  reply_to?: ReplyTo
   is_deleted?: boolean
   reactions?: MessageReaction[]
   created_at: string

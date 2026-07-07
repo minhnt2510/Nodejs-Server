@@ -19,5 +19,10 @@ export const conversationsApi = {
   async deleteConversation(receiverId: string) {
     const { data } = await http.delete<ApiResponse>(`/conversations/receivers/${receiverId}`)
     return data.message
+  },
+
+  async hardDeleteMessage(messageId: string) {
+    const { data } = await http.delete<ApiResponse>(`/conversations/message/${messageId}`)
+    return data.message
   }
 }

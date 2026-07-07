@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { API_BASE_URL, getErrorMessage } from '../lib/http'
 import { authStorage } from '../lib/storage'
 import { mediasApi } from '../apis/medias'
-import type { Conversation, Media, User } from '../types'
+import type { Conversation, Media, ReplyTo, User } from '../types'
 import { MediaType } from '../types'
 import { formatRelativeTime } from '../utils/format'
 
@@ -54,6 +54,8 @@ export function ChatPage() {
   const [contextMsgId, setContextMsgId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
+  const [replyTo, setReplyTo] = useState<ReplyTo | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [mediaFiles, setMediaFiles] = useState<{ file: File; previewUrl: string; type: 'image' | 'video' }[]>([])
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
@@ -275,21 +277,38 @@ export function ChatPage() {
       setIsUploadingMedia(false)
     }
 
-    // Optimistic update với medias
+    // Chuẩn bị payload
+    const payload: any = {
+      sender_id: user._id,
+      receiver_id: activeReceiverId,
+      content: content.trim(),
+      medias
+    }
+    // Nếu đang reply, thêm reply_to
+    const currentReplyTo = replyTo
+    if (currentReplyTo) {
+      payload.reply_to = {
+        message_id: currentReplyTo.message_id,
+        content: currentReplyTo.content,
+        sender_name: currentReplyTo.sender_name
+      }
+    }
+
+    // Optimistic update
     const message: Conversation = {
       _id: `local-${Date.now()}`,
       sender_id: user._id,
       receiver_id: activeReceiverId,
       content: content.trim(),
       medias,
+      reply_to: currentReplyTo || undefined,
       created_at: new Date().toISOString()
     }
     setMessages((current) => [...current, message])
 
-    socket.emit('send_message', {
-      payload: { sender_id: user._id, receiver_id: activeReceiverId, content: content.trim(), medias }
-    })
+    socket.emit('send_message', { payload })
     setContent('')
+    setReplyTo(null)
     // Cleanup previews
     mediaFiles.forEach((m) => URL.revokeObjectURL(m.previewUrl))
     setMediaFiles([])
@@ -370,6 +389,41 @@ export function ChatPage() {
   const onCopyText = (text: string) => {
     navigator.clipboard.writeText(text).catch(() => {})
     setContextMsgId(null)
+  }
+
+  const onReplyTo = (message: Conversation) => {
+    setReplyTo({
+      message_id: message._id,
+      content: message.content || (message.medias?.length ? '[Media]' : ''),
+      sender_name: message.sender_id === user?._id ? 'You' : (receiverInfo?.name || 'Unknown')
+    })
+    setContextMsgId(null)
+  }
+
+  const toggleSelect = (messageId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(messageId)) next.delete(messageId)
+      else next.add(messageId)
+      return next
+    })
+  }
+
+  const onHardDeleteSelected = async () => {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Delete ${selectedIds.size} message(s) permanently?`)) return
+    setContextMsgId(null)
+    try {
+      for (const id of selectedIds) {
+        if (!id.startsWith('local-')) {
+          await conversationsApi.hardDeleteMessage(id)
+        }
+      }
+      setMessages((current) => current.filter((m) => !selectedIds.has(m._id)))
+      setSelectedIds(new Set())
+    } catch (err: any) {
+      setError(getErrorMessage(err))
+    }
   }
 
   const onDelete = (messageId: string) => {
@@ -713,39 +767,60 @@ export function ChatPage() {
                         </div>
                       )}
 
-                      {/* 3-dot context button + dropdown (hover, de bam hon) */}
+                      {/* 3-dot context button + dropdown */}
                       {!message.is_deleted && (
-                        <div className={`absolute ${isMine ? '-left-7' : '-right-7'} top-0 hidden group-hover:block z-30`}>
+                        <div className={`absolute ${isMine ? '-left-9' : '-right-9'} top-0 hidden group-hover:block z-30`}>
                           <button
                             type="button"
                             onClick={() => setContextMsgId(contextMsgId === message._id ? null : message._id)}
-                            className="flex size-7 items-center justify-center rounded-full bg-twitter-surface border border-twitter-border text-twitter-muted hover:text-twitter-text shadow-md transition"
+                            className="flex size-8 items-center justify-center rounded-full bg-twitter-surface border border-twitter-border text-twitter-muted hover:text-twitter-text shadow-md transition"
                           >
                             <svg className="size-4" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                             </svg>
                           </button>
                           {contextMsgId === message._id && (
-                            <div className={`absolute ${isMine ? 'left-0' : 'right-0'} top-8 w-44 rounded-xl border border-twitter-border bg-twitter-bg shadow-2xl z-40 py-1 animate-fade-in`}>
+                            <div className={`absolute ${isMine ? 'left-0' : 'right-0'} top-9 w-48 rounded-xl border border-twitter-border bg-twitter-bg shadow-2xl z-40 py-1 animate-fade-in`}>
+                              <button
+                                type="button"
+                                onClick={() => onReplyTo(message)}
+                                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-twitter-text transition hover:bg-white/5"
+                              >
+                                <svg className="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                </svg>
+                                Reply
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { toggleSelect(message._id); setContextMsgId(null) }}
+                                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-twitter-text transition hover:bg-white/5"
+                              >
+                                <svg className="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                Select
+                              </button>
                               {message.content && (
                                 <button
                                   type="button"
                                   onClick={() => onCopyText(message.content)}
-                                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-twitter-text transition hover:bg-white/5"
+                                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-twitter-text transition hover:bg-white/5"
                                 >
-                                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <svg className="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                                   </svg>
                                   Copy text
                                 </button>
                               )}
-                              {isMine && !message._id.startsWith('local-') && (
+                              <hr className="border-twitter-border mx-2 my-1" />
+                              {isMine && (
                                 <button
                                   type="button"
                                   onClick={() => { setContextMsgId(null); onDelete(message._id) }}
-                                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-rose-500 transition hover:bg-white/5"
+                                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-500 transition hover:bg-white/5"
                                 >
-                                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <svg className="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
                                   Recall
@@ -797,6 +872,27 @@ export function ChatPage() {
           </div>
         ) : (
           <form onSubmit={onSend} className="border-t border-twitter-border bg-twitter-bg z-10">
+            {/* Selection mode toolbar */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 border-t border-twitter-border bg-twitter-bg px-4 py-2 z-10">
+                <button type="button" onClick={() => setSelectedIds(new Set())} className="text-sm font-bold text-twitter-text hover:underline">Cancel selection</button>
+                <span className="text-xs text-twitter-muted">{selectedIds.size} selected</span>
+                <button type="button" onClick={onHardDeleteSelected} className="ml-auto rounded-full bg-rose-500 px-4 py-1.5 text-xs font-bold text-white hover:bg-rose-600 transition">Delete</button>
+              </div>
+            )}
+
+            {/* Reply indicator */}
+            {replyTo && (
+              <div className="flex items-center gap-2 border-t border-twitter-border bg-twitter-surface/50 px-4 py-2 text-sm z-10">
+                <svg className="size-4 shrink-0 text-twitter-blue rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                <span className="text-xs text-twitter-muted truncate">Replying to <span className="font-bold text-twitter-text">{replyTo.sender_name}</span>: {replyTo.content}</span>
+                <button type="button" onClick={() => setReplyTo(null)} className="ml-auto text-twitter-muted hover:text-twitter-text">✕</button>
+              </div>
+            )}
+
+            <div style={{ display: selectedIds.size > 0 ? 'none' : undefined }}>
             {/* Media preview */}
             {mediaFiles.length > 0 && (
               <div className="flex gap-2 overflow-x-auto border-b border-twitter-border px-4 py-3">
@@ -877,6 +973,7 @@ export function ChatPage() {
               >
                 {isUploadingMedia ? 'Uploading...' : 'Send'}
               </button>
+            </div>
             </div>
           </form>
         )}

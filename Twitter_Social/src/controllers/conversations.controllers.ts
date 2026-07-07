@@ -51,3 +51,19 @@ export const deleteConversationController = async (req: Request, res: Response) 
 
   return res.json({ message: CONVERSATIONS_MESSAGES.DELETE_CONVERSATION_SUCCESS })
 }
+
+export const hardDeleteMessageController = async (req: Request, res: Response) => {
+  const { message_id } = req.params
+  const { user_id: sender_id } = req.decoded_authorization as TokenPayload
+
+  const result = await databaseService.conversations.deleteOne({
+    _id: new ObjectId(message_id),
+    sender_id: new ObjectId(sender_id)
+  })
+
+  if (result.deletedCount === 0) {
+    return res.status(404).json({ message: 'Message not found or not yours to delete' })
+  }
+
+  return res.json({ message: 'Message permanently deleted' })
+}

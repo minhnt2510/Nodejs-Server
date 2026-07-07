@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import {
   getConversationsController,
-  deleteConversationController
+  deleteConversationController,
+  hardDeleteMessageController
 } from '~/controllers/conversations.controllers'
 import { paginationValidator } from '~/middlewares/tweets.middlewares'
 import { accessTokenValidator, verifiedUserValidator } from '~/middlewares/users.middlewares'
@@ -46,6 +47,17 @@ conversationsRouter.delete(
   accessTokenValidator,
   verifiedUserValidator,
   wrapRequestHandler(deleteConversationController)
+)
+
+/**
+ * DELETE /conversations/message/:message_id
+ * Permanently delete a single message (sender only)
+ */
+conversationsRouter.delete(
+  '/message/:message_id',
+  accessTokenValidator,
+  verifiedUserValidator,
+  wrapRequestHandler(hardDeleteMessageController)
 )
 
 export default conversationsRouter

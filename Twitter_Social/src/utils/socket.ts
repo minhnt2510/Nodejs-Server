@@ -51,7 +51,7 @@ const initSocket = (httpServer: HttpServer) => {
 
     // Nhận tin nhắn và forward đến receiver
     socket.on('send_message', async (data) => {
-      const { receiver_id, sender_id, content, medias } = data.payload
+      const { receiver_id, sender_id, content, medias, reply_to } = data.payload
 
       // Check block status
       const isBlocked = await databaseService.blockedUsers.findOne({
@@ -75,7 +75,8 @@ const initSocket = (httpServer: HttpServer) => {
         sender_id: new ObjectId(sender_id),
         receiver_id: new ObjectId(receiver_id),
         content: content,
-        medias: medias || []
+        medias: medias || [],
+        reply_to: reply_to || undefined
       })
       const result = await databaseService.conversations.insertOne(conversation)
       conversation._id = result.insertedId
