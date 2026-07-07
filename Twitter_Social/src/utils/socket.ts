@@ -101,6 +101,7 @@ const initSocket = (httpServer: HttpServer) => {
           $set: {
             is_deleted: true,
             content: 'Tin nhắn đã bị thu hồi',
+            medias: [],
             updated_at: new Date()
           }
         }

@@ -50,6 +50,7 @@ export function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [showMenu, setShowMenu] = useState(false)
+  const [contextMsgId, setContextMsgId] = useState<string | null>(null)
   const [mediaFiles, setMediaFiles] = useState<{ file: File; previewUrl: string; type: 'image' | 'video' }[]>([])
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const imageInputRef = useRef<HTMLInputElement | null>(null)
@@ -169,7 +170,7 @@ export function ChatPage() {
       setMessages((current) =>
         current.map((m) =>
           m._id === data.message_id
-            ? { ...m, is_deleted: true, content: 'Tin nhắn đã bị thu hồi' }
+            ? { ...m, is_deleted: true, content: 'Tin nhắn đã bị thu hồi', medias: [] }
             : m
         )
       )
@@ -348,6 +349,11 @@ export function ChatPage() {
     })
   }
 
+  const onCopyText = (text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {})
+    setContextMsgId(null)
+  }
+
   const onDelete = (messageId: string) => {
     if (!socketRef.current?.connected || !activeReceiverId) return
     if (!window.confirm('Bạn có chắc chắn muốn thu hồi tin nhắn này?')) return
@@ -355,7 +361,7 @@ export function ChatPage() {
     // Optimistic update
     setMessages((current) =>
       current.map((m) =>
-        m._id === messageId ? { ...m, is_deleted: true, content: 'Tin nhắn đã bị thu hồi' } : m
+        m._id === messageId ? { ...m, is_deleted: true, content: 'Tin nhắn đã bị thu hồi', medias: [] } : m
       )
     )
 
@@ -603,9 +609,9 @@ export function ChatPage() {
                         </div>
                       )}
 
-                      {/* Hover action menu for emoji reactions and deleting messages */}
+                      {/* Hover: emoji reactions bar */}
                       {!message.is_deleted && (
-                        <div className={`absolute -top-9 ${isMine ? 'right-2' : 'left-2'} hidden group-hover:flex items-center gap-1.5 rounded-full bg-twitter-surface border border-twitter-border px-2.5 py-1.5 shadow-xl z-20 animate-fade-in`}>
+                        <div className={`absolute -top-10 ${isMine ? 'right-2' : 'left-2'} hidden group-hover:flex items-center gap-1.5 rounded-full bg-twitter-surface border border-twitter-border px-2.5 py-1.5 shadow-xl z-30 animate-fade-in`}>
                           {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
                             <button
                               key={emoji}
@@ -616,17 +622,55 @@ export function ChatPage() {
                               {emoji}
                             </button>
                           ))}
-                          {isMine && !message._id.startsWith('local-') && (
-                            <button
-                              type="button"
-                              onClick={() => onDelete(message._id)}
-                              className="ml-1 text-xs hover:scale-125 transition cursor-pointer"
-                              title="Thu hồi tin nhắn"
-                            >
-                              🗑️
-                            </button>
+                        </div>
+                      )}
+
+                      {/* 3-dot context button + dropdown */}
+                      {!message.is_deleted && (
+                        <div className={`absolute ${isMine ? '-left-8' : '-right-8'} top-0 hidden group-hover:block z-30`}>
+                          <button
+                            type="button"
+                            onClick={() => setContextMsgId(contextMsgId === message._id ? null : message._id)}
+                            className="flex size-7 items-center justify-center rounded-full bg-twitter-surface border border-twitter-border text-twitter-muted hover:text-twitter-text shadow-md transition"
+                          >
+                            <svg className="size-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          </button>
+                          {contextMsgId === message._id && (
+                            <div className={`absolute ${isMine ? 'left-0' : 'right-0'} top-8 w-44 rounded-xl border border-twitter-border bg-twitter-bg shadow-2xl z-40 py-1 animate-fade-in`}>
+                              {message.content && (
+                                <button
+                                  type="button"
+                                  onClick={() => onCopyText(message.content)}
+                                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-twitter-text transition hover:bg-white/5"
+                                >
+                                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                  </svg>
+                                  Copy text
+                                </button>
+                              )}
+                              {isMine && !message._id.startsWith('local-') && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setContextMsgId(null); onDelete(message._id) }}
+                                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-rose-500 transition hover:bg-white/5"
+                                >
+                                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  Recall
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
+                      )}
+
+                      {/* Click outside to close context menu */}
+                      {contextMsgId && (
+                        <div className="fixed inset-0 z-20" onClick={() => setContextMsgId(null)} />
                       )}
 
                       {/* Timestamp */}
