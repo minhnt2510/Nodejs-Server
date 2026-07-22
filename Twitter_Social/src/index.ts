@@ -60,6 +60,11 @@ app.use(express.static(path.resolve('public')))
 // ── Swagger ───────────────────────────────────────────────────────────────────
 setupSwagger(app)
 
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'OK', time: new Date().toISOString() })
+})
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/users', usersRouter)
 app.use('/tweets', tweetsRouter)
