@@ -1,5 +1,6 @@
 const ACCESS_TOKEN_KEY = 'twitter_social_access_token'
 const REFRESH_TOKEN_KEY = 'twitter_social_refresh_token'
+const PENDING_VERIFY_TOKEN_KEY = 'twitter_social_pending_verify_token'
 
 export interface AuthTokens {
   access_token: string
@@ -30,5 +31,18 @@ export const authStorage = {
   clearTokens() {
     localStorage.removeItem(ACCESS_TOKEN_KEY)
     localStorage.removeItem(REFRESH_TOKEN_KEY)
+    this.clearPendingVerifyToken()
+  },
+
+  getPendingVerifyToken() {
+    return localStorage.getItem(PENDING_VERIFY_TOKEN_KEY)
+  },
+
+  setPendingVerifyToken(token: string) {
+    localStorage.setItem(PENDING_VERIFY_TOKEN_KEY, token)
+  },
+
+  clearPendingVerifyToken() {
+    localStorage.removeItem(PENDING_VERIFY_TOKEN_KEY)
   }
 }

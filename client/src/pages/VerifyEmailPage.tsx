@@ -4,11 +4,16 @@ import { AuthShell } from '../components/layout/AuthShell'
 import { Alert } from '../components/ui/Alert'
 import { useAuth } from '../contexts/AuthContext'
 import { getErrorMessage } from '../lib/http'
+import { authStorage } from '../lib/storage'
 
 export function VerifyEmailPage() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') || searchParams.get('email_verify_token') || ''
+  const [pendingToken] = useState<string | null>(() => authStorage.getPendingVerifyToken())
   const { isAuthenticated, isVerified, resendVerifyEmail, verifyEmail } = useAuth()
+  const verifyLink = pendingToken
+    ? `${window.location.origin}/verify-email?token=${pendingToken}`
+    : null
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -61,7 +66,25 @@ export function VerifyEmailPage() {
 
         {!token && !isVerified ? (
           <div className="rounded-3xl border border-twitter-border bg-twitter-bg/70 p-4 text-sm leading-6 text-twitter-muted">
-            {isAuthenticated ? (
+            {verifyLink ? (
+              <>
+                <p className="mb-4">
+                  Your account is ready to verify. Tap the button below to activate it.
+                </p>
+                <a
+                  href={verifyLink}
+                  className="block rounded-full bg-twitter-blue px-5 py-3 text-center font-black text-white shadow-lg shadow-twitter-blue/20 transition hover:bg-twitter-blue-hover"
+                >
+                  Verify my email
+                </a>
+                <p className="mt-4 break-all">
+                  Verification link:{' '}
+                  <a href={verifyLink} className="font-semibold text-twitter-blue hover:underline">
+                    {verifyLink}
+                  </a>
+                </p>
+              </>
+            ) : isAuthenticated ? (
               <>
                 Did not receive the email? Send a fresh verification link.
                 <button

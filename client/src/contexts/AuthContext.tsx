@@ -65,6 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (payload: RegisterPayload) => {
       const tokens = await authApi.register(payload)
       await storeTokens(tokens)
+      if (tokens.email_verify_token) {
+        authStorage.setPendingVerifyToken(tokens.email_verify_token)
+      }
       return tokens.email_verify_token ?? null
     },
     [storeTokens]
@@ -86,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (token: string) => {
       const tokens = await authApi.verifyEmail(token)
       await storeTokens(tokens)
+      authStorage.clearPendingVerifyToken()
     },
     [storeTokens]
   )
