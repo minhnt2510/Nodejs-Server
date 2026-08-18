@@ -170,6 +170,9 @@ class UsersService {
     const [access_token, refresh_token] = token
     const { iat, exp } = await verifyToken({ token: refresh_token, secretOrPublicKey: envConfig.jwtSecretRefreshToken })
     await this.insertRefreshToken(new ObjectId(user_id), refresh_token, iat, exp)
+    // Xóa cache user cũ (verify=0) để getMe trả về trạng thái đã verify ngay lập tức,
+    // nếu không Redis trả dữ liệu cũ tới 5 phút khiến client vẫn thấy chưa verify.
+    await cacheDel(cacheKey('user', user_id))
     await this.autoFollowMainAccount(user_id)
     return { access_token, refresh_token }
   }
