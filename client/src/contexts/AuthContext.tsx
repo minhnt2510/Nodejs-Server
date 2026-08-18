@@ -130,6 +130,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshUser])
 
+  // Khi trình duyệt khôi phục trang từ bfcache (bấm nút Back), React KHÔNG chạy lại effect
+  // nào nên state user bị "đông cứng" từ trước khi verify (verify=0) => banner vẫn hiện.
+  // pageshow + persisted = dấu hiệu khôi phục từ bfcache => gọi lại getMe() để đồng bộ.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        refreshUser().catch(() => {
+          // Lỗi mạng thoáng qua không cần đăng xuất; lần gọi sau sẽ tự đồng bộ.
+        })
+      }
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [refreshUser])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
