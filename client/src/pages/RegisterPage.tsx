@@ -16,6 +16,7 @@ export function RegisterPage() {
   const [dateOfBirth, setDateOfBirth] = useState('2000-01-01')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [verifyLink, setVerifyLink] = useState('')
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -30,7 +31,11 @@ export function RegisterPage() {
         confirm_password: confirmPassword,
         date_of_birth: new Date(dateOfBirth).toISOString()
       })
-      navigate(verifyToken ? `/verify-email?token=${verifyToken}` : '/verify-email', { replace: true })
+      if (verifyToken) {
+        setVerifyLink(`${window.location.origin}/verify-email?token=${verifyToken}`)
+      } else {
+        navigate('/verify-email', { replace: true })
+      }
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -41,8 +46,12 @@ export function RegisterPage() {
   return (
     <AuthShell
       eyebrow="Join the timeline"
-      title="Create your account"
-      description="The backend will send a verification email after registration. Passwords must be strong."
+      title={verifyLink ? 'Verify your email' : 'Create your account'}
+      description={
+        verifyLink
+          ? 'Tap the link below to verify your account. Most features are unlocked after verification.'
+          : 'Create an account and verify via the link shown after registration. Passwords must be strong.'
+      }
       footer={
         <>
           Already have an account?{' '}
@@ -52,6 +61,20 @@ export function RegisterPage() {
         </>
       }
     >
+      {verifyLink ? (
+        <div className="space-y-4">
+          <Alert type="success">Account created! Verify your email by tapping the link below.</Alert>
+          <a
+            href={verifyLink}
+            className="block rounded-full bg-twitter-blue px-5 py-3 text-center font-black text-white shadow-lg shadow-twitter-blue/20 transition hover:bg-twitter-blue-hover"
+          >
+            Verify my email
+          </a>
+          <p className="break-all rounded-2xl border border-twitter-border bg-twitter-bg/70 p-4 text-sm leading-6 text-twitter-muted">
+            Verification link: <a href={verifyLink} className="font-semibold text-twitter-blue hover:underline">{verifyLink}</a>
+          </p>
+        </div>
+      ) : (
       <form className="space-y-4" onSubmit={onSubmit}>
         {error ? <Alert type="error">{error}</Alert> : null}
 
@@ -121,6 +144,7 @@ export function RegisterPage() {
           {isSubmitting ? 'Creating account...' : 'Create account'}
         </button>
       </form>
+      )}
     </AuthShell>
   )
 }
