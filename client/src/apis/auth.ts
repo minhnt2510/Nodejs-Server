@@ -58,8 +58,10 @@ export const authApi = {
   },
 
   async resendVerifyEmail() {
-    const { data } = await http.post<ApiResponse>('/users/resend-verify-email')
-    return data.message
+    const { data } = await http.post<ApiResponse<{ email_verify_token: string }>>(
+      '/users/resend-verify-email'
+    )
+    return data.result ?? null
   },
 
   async forgotPassword(email: string) {

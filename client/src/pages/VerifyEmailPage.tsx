@@ -9,7 +9,7 @@ import { authStorage } from '../lib/storage'
 export function VerifyEmailPage() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') || searchParams.get('email_verify_token') || ''
-  const [pendingToken] = useState<string | null>(() => authStorage.getPendingVerifyToken())
+  const [pendingToken, setPendingToken] = useState<string | null>(() => authStorage.getPendingVerifyToken())
   const { isAuthenticated, isVerified, resendVerifyEmail, verifyEmail } = useAuth()
   const verifyLink = pendingToken
     ? `${window.location.origin}/verify-email?token=${pendingToken}`
@@ -39,6 +39,7 @@ export function VerifyEmailPage() {
 
     try {
       const message = await resendVerifyEmail()
+      setPendingToken(authStorage.getPendingVerifyToken())
       setStatus(message)
     } catch (err) {
       setError(getErrorMessage(err))

@@ -94,7 +94,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [storeTokens]
   )
 
-  const resendVerifyEmail = useCallback(() => authApi.resendVerifyEmail(), [])
+  const resendVerifyEmail = useCallback(async () => {
+    const result = await authApi.resendVerifyEmail()
+    if (result?.email_verify_token) {
+      authStorage.setPendingVerifyToken(result.email_verify_token)
+      return 'Your verification link is ready. Tap the button below to verify your account.'
+    }
+    return 'Verification email sent. Check your inbox.'
+  }, [])
 
   useEffect(() => {
     let mounted = true

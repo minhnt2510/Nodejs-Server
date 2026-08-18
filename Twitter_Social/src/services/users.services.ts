@@ -202,7 +202,7 @@ class UsersService {
       { _id: new ObjectId(user_id) },
       { $set: { email_verify_token }, $currentDate: { updated_at: true } }
     )
-    return { message: USERS_MESSAGES.RESEND_VERIFY_EMAIL_SUCCESS }
+    return { message: USERS_MESSAGES.RESEND_VERIFY_EMAIL_SUCCESS, result: { email_verify_token } }
   }
 
   // -------------------- Forgot Password --------------------
