@@ -19,7 +19,7 @@ interface AuthContextValue {
   isAuthenticated: boolean
   isVerified: boolean
   login: (payload: LoginPayload) => Promise<void>
-  register: (payload: RegisterPayload) => Promise<void>
+  register: (payload: RegisterPayload) => Promise<string | null>
   logout: () => Promise<void>
   refreshUser: () => Promise<User | null>
   storeTokens: (tokens: AuthTokens) => Promise<void>
@@ -65,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (payload: RegisterPayload) => {
       const tokens = await authApi.register(payload)
       await storeTokens(tokens)
+      return tokens.email_verify_token ?? null
     },
     [storeTokens]
   )

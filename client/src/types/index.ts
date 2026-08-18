@@ -77,6 +77,7 @@ export interface Conversation {
 export interface AuthResponse {
   access_token: string
   refresh_token: string
+  email_verify_token?: string
 }
 
 export interface ApiResponse<T = unknown> {

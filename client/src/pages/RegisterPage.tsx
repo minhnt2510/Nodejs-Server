@@ -23,14 +23,14 @@ export function RegisterPage() {
     setIsSubmitting(true)
 
     try {
-      await register({
+      const verifyToken = await register({
         name,
         email,
         password,
         confirm_password: confirmPassword,
         date_of_birth: new Date(dateOfBirth).toISOString()
       })
-      navigate('/verify-email', { replace: true })
+      navigate(verifyToken ? `/verify-email?token=${verifyToken}` : '/verify-email', { replace: true })
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {

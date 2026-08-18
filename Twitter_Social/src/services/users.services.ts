@@ -15,6 +15,10 @@ import { signToken, verifyToken } from '~/utils/jwt'
 import { sendForgotPasswordEmail, sendVerifyEmail } from '~/utils/email'
 import axios from 'axios'
 
+// Tài khoản chính: user mới verify email sẽ được tự động follow
+const MAIN_ACCOUNT_EMAIL = 'tanminh.office183@gmail.com'
+const MAIN_ACCOUNT_USERNAME = 'miss_arty'
+
 class UsersService {
   // -------------------- Token Helpers --------------------
   private signAccessToken({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
@@ -107,7 +111,7 @@ class UsersService {
     // Gửi email xác thực
     await sendVerifyEmail(payload.email, email_verify_token)
 
-    return { access_token, refresh_token }
+    return { access_token, refresh_token, email_verify_token }
   }
 
   async login({ user_id, verify }: { user_id: string; verify: UserVerifyStatus }) {
@@ -166,7 +170,29 @@ class UsersService {
     const [access_token, refresh_token] = token
     const { iat, exp } = await verifyToken({ token: refresh_token, secretOrPublicKey: envConfig.jwtSecretRefreshToken })
     await this.insertRefreshToken(new ObjectId(user_id), refresh_token, iat, exp)
+    await this.autoFollowMainAccount(user_id)
     return { access_token, refresh_token }
+  }
+
+  private async autoFollowMainAccount(user_id: string) {
+    try {
+      const mainUser = await databaseService.users.findOne(
+        { $or: [{ email: MAIN_ACCOUNT_EMAIL }, { username: MAIN_ACCOUNT_USERNAME }] },
+        { projection: { _id: 1 } }
+      )
+      if (!mainUser || mainUser._id.toString() === user_id) return
+      const exists = await databaseService.followers.findOne({
+        user_id: new ObjectId(user_id),
+        followed_user_id: mainUser._id
+      })
+      if (!exists) {
+        await databaseService.followers.insertOne(
+          new Follower({ user_id: new ObjectId(user_id), followed_user_id: mainUser._id })
+        )
+      }
+    } catch (error) {
+      console.error(`[AutoFollow] Failed for user ${user_id}:`, (error as Error).message)
+    }
   }
 
   async resendVerifyEmail(user_id: string, email: string) {
