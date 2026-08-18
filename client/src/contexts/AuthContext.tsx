@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from 'react'
 import { authApi } from '../apis/auth'
@@ -32,6 +33,10 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isBootstrapping, setIsBootstrapping] = useState(true)
+  // Chống race: chỉ kết quả của refreshUser() khởi chạy GẦN NHẤT mới được áp dụng.
+  // (VD: bootstrap lấy user verify=0 trong lúc verify-email đang chạy — kết quả cũ
+  // trả về muộn sẽ không ghi đè state verify=1 mới.)
+  const refreshSeqRef = useRef(0)
 
   const refreshUser = useCallback(async () => {
     const tokens = authStorage.getTokens()
@@ -40,8 +45,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null
     }
 
+    const seq = ++refreshSeqRef.current
     const me = await authApi.getMe()
-    setUser(me)
+    if (seq === refreshSeqRef.current) {
+      setUser(me)
+    }
     return me
   }, [])
 
